@@ -38,7 +38,7 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} dark`}
       suppressHydrationWarning
     >
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased" suppressHydrationWarning>
         <LayoutClient>{children}</LayoutClient>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

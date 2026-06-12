@@ -1,251 +1,258 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
-import { StatusBadge } from '@/components/ui/status-badge'
-import { PlatformChip } from '@/components/ui/platform-chip'
-import { mockOrders, mockWorkers } from '@/lib/mock-data'
-import type { Order } from '@/lib/types'
-import { Plus, Filter } from 'lucide-react'
+import {
+  fetchPlatforms,
+  fetchOrdersByPlatform,
+  createOrder,
+  updateOrder,
+} from '@/lib/db'
+import type { Platform, OrderRow, OrderStatus } from '@/types'
+import { Plus, Loader2, X } from 'lucide-react'
+
+const ORDER_STATUSES: OrderStatus[] = [
+  '🟢 Active', '🟡 Pending', '🔵 Processing',
+  '🔴 Issue', '⚫ Cancelled', '✅ Completed',
+]
 
 export default function OrdersPage() {
-  const { hasAccess } = useAuth()
-  const [orders, setOrders] = useState<Order[]>(mockOrders)
+  const { hasAccess, permissions } = useAuth()
+  const [platforms, setPlatforms] = useState<Platform[]>([])
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('')
+  const [orders, setOrders] = useState<OrderRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [tableLoading, setTableLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchPlatforms().then((data) => {
+      setPlatforms(data)
+      if (data.length > 0) setSelectedPlatform(data[0].slug)
+      setLoading(false)
+    })
+  }, [])
+
+  const loadOrders = useCallback(async (slug: string) => {
+    setTableLoading(true)
+    const data = await fetchOrdersByPlatform(slug)
+    setOrders(data)
+    setTableLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (selectedPlatform) loadOrders(selectedPlatform)
+  }, [selectedPlatform, loadOrders])
 
   if (!hasAccess('orders')) {
     return <AccessDenied />
   }
 
+  const activePlatform = platforms.find((p) => p.slug === selectedPlatform)
+
   const filteredOrders = selectedStatus
     ? orders.filter((o) => o.status === selectedStatus)
     : orders
 
-  const handleCreateOrder = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateOrder = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const newOrder: Order = {
-      id: `order-${Date.now()}`,
-      orderNumber: `ORD-2024-${String(orders.length + 1).padStart(3, '0')}`,
-      workerId: formData.get('workerId') as string,
-      workerName:
-        mockWorkers.find((w) => w.id === formData.get('workerId'))?.name ||
-        'Unknown',
-      platform:
-        (formData.get('platform') as Order['platform']) || 'platform_a',
-      status: 'pending',
-      amount: parseFloat(formData.get('amount') as string) || 0,
-      createdAt: new Date(),
-      notes: (formData.get('notes') as string) || undefined,
+    const fd = new FormData(e.currentTarget)
+    if (!activePlatform) return
+
+    const { error } = await createOrder({
+      platform_id: activePlatform.id,
+      order_id_code: fd.get('order_id_code') as string,
+      proxy: (fd.get('proxy') as string) || null,
+      owner_name: fd.get('owner_name') as string,
+      status: '🟡 Pending',
+      order_date: (fd.get('order_date') as string) || null,
+      notes: (fd.get('notes') as string) || null,
+    })
+
+    if (!error) {
+      setShowForm(false)
+      loadOrders(selectedPlatform)
     }
-    setOrders([newOrder, ...orders])
-    setShowForm(false)
-    ;(e.target as HTMLFormElement).reset()
   }
 
-  const statuses = ['pending', 'in_progress', 'completed', 'failed', 'cancelled']
-  const statusCounts = {
-    all: orders.length,
-    ...statuses.reduce(
-      (acc, status) => ({
-        ...acc,
-        [status]: orders.filter((o) => o.status === status).length,
-      }),
-      {}
-    ),
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    const { error } = await updateOrder(orderId, { status: newStatus as OrderStatus })
+    if (!error) {
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus as OrderStatus } : o))
+      )
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Orders</h1>
+          <h1 className="text-3xl font-bold text-foreground">Restricted Zone</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage worker orders and task assignments
+            Platform order management and tracking
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Create Order
-        </button>
+        {permissions?.canEditOrders && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors"
+          >
+            {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {showForm ? 'Cancel' : 'Create Order'}
+          </button>
+        )}
       </div>
 
+      {/* Create order form */}
       {showForm && (
         <form
           onSubmit={handleCreateOrder}
           className="space-y-4 rounded-lg border border-ops/20 bg-ops/5 p-6"
         >
           <h3 className="font-semibold text-foreground">Create New Order</h3>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Worker
-              </label>
-              <select
-                name="workerId"
-                required
-                className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50 focus:border-ops"
-              >
-                <option value="">Select a worker...</option>
-                {mockWorkers.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.workerId})
-                  </option>
-                ))}
-              </select>
+              <label className="block text-sm font-medium text-foreground mb-1">Order ID Code *</label>
+              <input name="order_id_code" required placeholder="e.g. ORD-2025-001" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Platform
-              </label>
-              <select
-                name="platform"
-                defaultValue="platform_a"
-                className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50 focus:border-ops"
-              >
-                <option value="platform_a">Platform A</option>
-                <option value="platform_b">Platform B</option>
-                <option value="platform_c">Platform C</option>
-              </select>
+              <label className="block text-sm font-medium text-foreground mb-1">Owner Name *</label>
+              <input name="owner_name" required className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Amount ($)
-              </label>
-              <input
-                type="number"
-                name="amount"
-                step="0.01"
-                min="0"
-                required
-                className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50 focus:border-ops"
-                placeholder="0.00"
-              />
+              <label className="block text-sm font-medium text-foreground mb-1">Proxy</label>
+              <input name="proxy" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Notes
-              </label>
-              <input
-                type="text"
-                name="notes"
-                className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50 focus:border-ops"
-                placeholder="Optional notes..."
-              />
+              <label className="block text-sm font-medium text-foreground mb-1">Order Date</label>
+              <input name="order_date" type="date" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
+              <input name="notes" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
             </div>
           </div>
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors"
-            >
-              Create Order
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
+          <button type="submit" className="rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors">
+            Create Order
+          </button>
         </form>
       )}
 
+      {/* Platform tabs */}
+      <div className="flex flex-wrap gap-2">
+        {platforms.map((p) => (
+          <button
+            key={p.slug}
+            onClick={() => { setSelectedPlatform(p.slug); setSelectedStatus(null) }}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              selectedPlatform === p.slug
+                ? 'text-white'
+                : 'border border-border-subtle text-muted-foreground hover:bg-muted'
+            }`}
+            style={selectedPlatform === p.slug ? { backgroundColor: p.color_hex } : undefined}
+          >
+            {p.icon} {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Status filter */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setSelectedStatus(null)}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
             selectedStatus === null
               ? 'bg-ops text-white'
               : 'border border-border-subtle text-muted-foreground hover:bg-muted'
           }`}
         >
-          All ({statusCounts.all})
+          All ({orders.length})
         </button>
-        {statuses.map((status) => (
-          <button
-            key={status}
-            onClick={() => setSelectedStatus(status)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              selectedStatus === status
-                ? 'bg-ops text-white'
-                : 'border border-border-subtle text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')} (
-            {statusCounts[status as keyof typeof statusCounts] || 0})
-          </button>
-        ))}
+        {ORDER_STATUSES.map((status) => {
+          const count = orders.filter((o) => o.status === status).length
+          if (count === 0) return null
+          return (
+            <button
+              key={status}
+              onClick={() => setSelectedStatus(status)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                selectedStatus === status
+                  ? 'bg-ops text-white'
+                  : 'border border-border-subtle text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {status} ({count})
+            </button>
+          )
+        })}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border-subtle">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border-subtle bg-card">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Order #
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Worker
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Platform
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Status
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Amount
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Created
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {filteredOrders.map((order) => (
-              <tr
-                key={order.id}
-                className="bg-card hover:bg-muted/50 transition-colors"
-              >
-                <td className="px-4 py-3 font-mono text-xs text-foreground">
-                  {order.orderNumber}
-                </td>
-                <td className="px-4 py-3">
-                  <p className="font-medium text-foreground">{order.workerName}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <PlatformChip platform={order.platform} variant="compact" />
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={order.status} />
-                </td>
-                <td className="px-4 py-3 font-medium text-foreground">
-                  ${order.amount.toFixed(2)}
-                </td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">
-                  {new Date(order.createdAt).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {filteredOrders.length === 0 && (
+      {/* Table */}
+      {tableLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : filteredOrders.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-border-subtle bg-card py-12">
-          <p className="text-muted-foreground">No orders found</p>
+          <p className="text-muted-foreground">
+            {selectedStatus ? 'No orders with this status' : `No orders for ${activePlatform?.label ?? 'this platform'} yet.`}
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border-subtle">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border-subtle bg-card">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Order ID</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Owner</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Proxy</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {filteredOrders.map((order) => (
+                <tr key={order.id} className="bg-card hover:bg-muted/50 transition-colors">
+                  <td className="px-4 py-3 font-mono text-xs text-foreground">{order.order_id_code}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">{order.owner_name}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{order.proxy ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    {permissions?.canEditOrders ? (
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                        className="rounded bg-transparent border border-border-subtle px-2 py-1 text-xs"
+                      >
+                        {ORDER_STATUSES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-sm">{order.status}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {order.order_date ? new Date(order.order_date).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">
+                    {order.notes ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

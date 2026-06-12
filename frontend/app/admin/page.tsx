@@ -1,9 +1,11 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
-import type { UserRole } from '@/lib/types'
-import { Settings, Shield, Users } from 'lucide-react'
+import { fetchAllUsers } from '@/lib/db'
+import type { UserRole, AppUser } from '@/types'
+import { Settings, Shield, Users, Loader2 } from 'lucide-react'
 
 const rolePermissions: Record<UserRole, string[]> = {
   admin: [
@@ -14,42 +16,53 @@ const rolePermissions: Record<UserRole, string[]> = {
     'View Payroll',
     'Access Admin Panel',
     'Manage Roles',
-    'View System Logs',
+    'Export Data',
   ],
   manager: [
     'View Dashboard',
     'View Tracker',
     'View Registry',
-    'Create Orders',
+    'View Orders (if granted)',
     'View Payroll',
+    'Export Data',
   ],
   supervisor: [
     'View Dashboard',
     'View Tracker',
     'View Registry',
-    'Create Orders',
+    'View Orders (if granted)',
   ],
-  worker: ['View Dashboard'],
+  worker: ['View Dashboard (own data)'],
 }
-
-const users = [
-  { id: 'user-1', name: 'Admin User', email: 'admin@workershub.dev', role: 'admin' },
-  { id: 'user-2', name: 'Manager User', email: 'manager@workershub.dev', role: 'manager' },
-  { id: 'user-3', name: 'Supervisor User', email: 'supervisor@workershub.dev', role: 'supervisor' },
-  { id: 'user-4', name: 'Worker User', email: 'worker@workershub.dev', role: 'worker' },
-]
 
 export default function AdminPage() {
   const { hasRole } = useAuth()
+  const [users, setUsers] = useState<AppUser[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchAllUsers().then((data) => {
+      setUsers(data)
+      setLoading(false)
+    })
+  }, [])
 
   if (!hasRole('admin')) {
     return <AccessDenied />
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Administration</h1>
+        <h1 className="text-3xl font-bold text-foreground">Control Tower</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Manage system roles, permissions, and user accounts
         </p>
@@ -73,7 +86,7 @@ export default function AdminPage() {
                     {role}
                   </h3>
                   <span className="rounded-full bg-ops/10 px-2.5 py-1 text-xs font-medium text-ops">
-                    {rolePermissions[role].length} permissions
+                    {users.filter((u) => u.role === role).length} users · {rolePermissions[role].length} permissions
                   </span>
                 </div>
 
@@ -95,34 +108,55 @@ export default function AdminPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-ops" />
-            <h2 className="text-lg font-semibold text-foreground">User Management</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              User Management ({users.length})
+            </h2>
           </div>
 
           <div className="space-y-3">
-            {users.map((user) => (
-              <div
-                key={user.id}
-                className="rounded-lg border border-border-subtle bg-card p-4 hover:border-ops/50 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium text-foreground">{user.name}</h3>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
-                  </div>
-                  <span className="rounded-full bg-ops/10 px-2.5 py-1 text-xs font-semibold text-ops capitalize">
-                    {user.role}
-                  </span>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button className="rounded px-2 py-1 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors">
-                    Edit
-                  </button>
-                  <button className="rounded px-2 py-1 text-xs font-medium border border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/5 transition-colors">
-                    Delete
-                  </button>
-                </div>
+            {users.length === 0 ? (
+              <div className="rounded-lg border border-border-subtle bg-card p-8 text-center">
+                <p className="text-muted-foreground">No users yet</p>
               </div>
-            ))}
+            ) : (
+              users.map((user) => (
+                <div
+                  key={user.id}
+                  className="rounded-lg border border-border-subtle bg-card p-4 hover:border-ops/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium text-foreground">
+                        {user.display_name ?? user.email.split('@')[0]}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                    </div>
+                    <span className="rounded-full bg-ops/10 px-2.5 py-1 text-xs font-semibold text-ops capitalize">
+                      {user.role}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    {user.platform_access ? (
+                      user.platform_access.map((slug) => (
+                        <span key={slug} className="rounded bg-muted px-1.5 py-0.5">{slug}</span>
+                      ))
+                    ) : (
+                      <span className="italic">All platforms</span>
+                    )}
+                    {user.can_view_orders && (
+                      <span className="rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5">
+                        Can view orders
+                      </span>
+                    )}
+                  </div>
+                  {user.last_sign_in && (
+                    <p className="mt-2 text-[10px] text-muted-foreground">
+                      Last sign-in: {new Date(user.last_sign_in).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -134,56 +168,6 @@ export default function AdminPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-border-subtle bg-card p-4">
-            <h3 className="font-medium text-foreground mb-2">Platform Settings</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Maintenance Mode</span>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    className="sr-only h-3.5 w-6 appearance-none rounded-full bg-muted accent-ops"
-                  />
-                  <span className="h-3.5 w-6 rounded-full bg-muted"></span>
-                </label>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Debug Mode</span>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    className="sr-only h-3.5 w-6 appearance-none rounded-full bg-muted accent-ops"
-                  />
-                  <span className="h-3.5 w-6 rounded-full bg-muted"></span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border-subtle bg-card p-4">
-            <h3 className="font-medium text-foreground mb-2">Security</h3>
-            <div className="space-y-2 text-sm">
-              <button className="w-full rounded px-3 py-1.5 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors">
-                Audit Logs
-              </button>
-              <button className="w-full rounded px-3 py-1.5 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors">
-                API Keys
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border-subtle bg-card p-4">
-            <h3 className="font-medium text-foreground mb-2">Integrations</h3>
-            <div className="space-y-2 text-sm">
-              <button className="w-full rounded px-3 py-1.5 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors">
-                Connected Services
-              </button>
-              <button className="w-full rounded px-3 py-1.5 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors">
-                Webhooks
-              </button>
-            </div>
-          </div>
-
           <div className="rounded-lg border border-border-subtle bg-card p-4">
             <h3 className="font-medium text-foreground mb-2">System Health</h3>
             <div className="space-y-2 text-xs">
@@ -198,6 +182,10 @@ export default function AdminPage() {
                 <span className="rounded-full bg-green-500/10 px-2 py-0.5 font-medium text-green-600 dark:text-green-400">
                   Healthy
                 </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total Users</span>
+                <span className="font-medium text-foreground">{users.length}</span>
               </div>
             </div>
           </div>
