@@ -1,54 +1,127 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
-import { fetchAllUsers } from '@/lib/db'
-import type { UserRole, AppUser } from '@/types'
-import { Settings, Shield, Users, Loader2 } from 'lucide-react'
+import { fetchPlatforms } from '@/lib/db'
+import type { UserRole, AppUser, Platform } from '@/types'
+import { Settings, Shield, Users, Loader2, Check, X } from 'lucide-react'
+
+const ROLES: UserRole[] = ['admin', 'manager', 'supervisor', 'worker']
 
 const rolePermissions: Record<UserRole, string[]> = {
   admin: [
-    'View Dashboard',
-    'View Tracker',
-    'View Registry',
-    'Create Orders',
+    'View Dashboard (all platforms)',
+    'View/Edit Tracker',
+    'View/Edit Registry',
+    'Create/Edit Orders',
     'View Payroll',
     'Access Admin Panel',
     'Manage Roles',
     'Export Data',
   ],
   manager: [
-    'View Dashboard',
-    'View Tracker',
-    'View Registry',
+    'View Dashboard (assigned)',
+    'View/Edit Tracker (assigned)',
+    'View/Edit Registry (assigned)',
     'View Orders (if granted)',
     'View Payroll',
     'Export Data',
   ],
   supervisor: [
-    'View Dashboard',
-    'View Tracker',
-    'View Registry',
+    'View Dashboard (assigned)',
+    'View Tracker (assigned)',
+    'View Registry (assigned)',
     'View Orders (if granted)',
   ],
-  worker: ['View Dashboard (own data)'],
+  worker: ['View Dashboard (own data only)'],
+}
+
+interface EditState {
+  role: UserRole
+  platform_access: string[]
+  can_view_orders: boolean
 }
 
 export default function AdminPage() {
-  const { hasRole } = useAuth()
+  const { hasRole, appUser } = useAuth()
   const [users, setUsers] = useState<AppUser[]>([])
+  const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editState, setEditState] = useState<EditState | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const loadUsers = useCallback(async () => {
+    const res = await fetch('/api/admin/users')
+    if (res.ok) {
+      const data = await res.json()
+      setUsers(data)
+    }
+  }, [])
 
   useEffect(() => {
-    fetchAllUsers().then((data) => {
-      setUsers(data)
-      setLoading(false)
-    })
-  }, [])
+    Promise.all([loadUsers(), fetchPlatforms().then(setPlatforms)])
+      .finally(() => setLoading(false))
+  }, [loadUsers])
 
   if (!hasRole('admin')) {
     return <AccessDenied />
+  }
+
+  const startEditing = (user: AppUser) => {
+    setEditingId(user.id)
+    setEditState({
+      role: user.role as UserRole,
+      platform_access: user.platform_access ?? [],
+      can_view_orders: user.can_view_orders,
+    })
+    setMessage(null)
+  }
+
+  const cancelEditing = () => {
+    setEditingId(null)
+    setEditState(null)
+  }
+
+  const saveUser = async (userId: string) => {
+    if (!editState) return
+    setSaving(true)
+    setMessage(null)
+
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        role: editState.role,
+        platform_access: editState.role === 'admin' ? null : editState.platform_access,
+        can_view_orders: editState.role === 'admin' ? true : editState.can_view_orders,
+      }),
+    })
+
+    const data = await res.json()
+    setSaving(false)
+
+    if (res.ok) {
+      setMessage({ type: 'success', text: 'User updated successfully' })
+      setEditingId(null)
+      setEditState(null)
+      loadUsers()
+    } else {
+      setMessage({ type: 'error', text: data.error || 'Failed to update user' })
+    }
+  }
+
+  const togglePlatform = (slug: string) => {
+    if (!editState) return
+    setEditState({
+      ...editState,
+      platform_access: editState.platform_access.includes(slug)
+        ? editState.platform_access.filter((s) => s !== slug)
+        : [...editState.platform_access, slug],
+    })
   }
 
   if (loading) {
@@ -68,35 +141,38 @@ export default function AdminPage() {
         </p>
       </div>
 
+      {message && (
+        <div className={`rounded-lg border p-3 text-sm ${
+          message.type === 'success'
+            ? 'border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400'
+            : 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400'
+        }`}>
+          {message.text}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Role overview */}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-ops" />
-            <h2 className="text-lg font-semibold text-foreground">Role Management</h2>
+            <h2 className="text-lg font-semibold text-foreground">Role Permissions</h2>
           </div>
 
           <div className="space-y-3">
-            {(Object.keys(rolePermissions) as UserRole[]).map((role) => (
-              <div
-                key={role}
-                className="rounded-lg border border-border-subtle bg-card p-4"
-              >
+            {ROLES.map((role) => (
+              <div key={role} className="rounded-lg border border-border-subtle bg-card p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <h3 className="font-semibold text-foreground capitalize">
-                    {role}
-                  </h3>
+                  <h3 className="font-semibold text-foreground capitalize">{role}</h3>
                   <span className="rounded-full bg-ops/10 px-2.5 py-1 text-xs font-medium text-ops">
-                    {users.filter((u) => u.role === role).length} users · {rolePermissions[role].length} permissions
+                    {users.filter((u) => u.role === role).length} users
                   </span>
                 </div>
-
-                <div className="space-y-2">
-                  {rolePermissions[role].map((permission) => (
-                    <div key={permission} className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-ops"></div>
-                      <span className="text-sm text-muted-foreground">
-                        {permission}
-                      </span>
+                <div className="space-y-1.5">
+                  {rolePermissions[role].map((perm) => (
+                    <div key={perm} className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-ops" />
+                      <span className="text-xs text-muted-foreground">{perm}</span>
                     </div>
                   ))}
                 </div>
@@ -105,6 +181,7 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* User management */}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-ops" />
@@ -114,15 +191,16 @@ export default function AdminPage() {
           </div>
 
           <div className="space-y-3">
-            {users.length === 0 ? (
-              <div className="rounded-lg border border-border-subtle bg-card p-8 text-center">
-                <p className="text-muted-foreground">No users yet</p>
-              </div>
-            ) : (
-              users.map((user) => (
+            {users.map((user) => {
+              const isEditing = editingId === user.id
+              const isSelf = user.id === appUser?.id
+
+              return (
                 <div
                   key={user.id}
-                  className="rounded-lg border border-border-subtle bg-card p-4 hover:border-ops/50 transition-colors"
+                  className={`rounded-lg border bg-card p-4 transition-colors ${
+                    isEditing ? 'border-ops/50' : 'border-border-subtle hover:border-ops/30'
+                  }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -131,32 +209,121 @@ export default function AdminPage() {
                       </h3>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
-                    <span className="rounded-full bg-ops/10 px-2.5 py-1 text-xs font-semibold text-ops capitalize">
-                      {user.role}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    {user.platform_access ? (
-                      user.platform_access.map((slug) => (
-                        <span key={slug} className="rounded bg-muted px-1.5 py-0.5">{slug}</span>
-                      ))
+
+                    {isEditing ? (
+                      <select
+                        value={editState!.role}
+                        onChange={(e) => setEditState({ ...editState!, role: e.target.value as UserRole })}
+                        disabled={isSelf}
+                        className="rounded border border-ops/30 bg-background px-2 py-1 text-xs font-semibold text-ops focus:outline-none focus:ring-2 focus:ring-ops/50"
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>{r.toUpperCase()}</option>
+                        ))}
+                      </select>
                     ) : (
-                      <span className="italic">All platforms</span>
-                    )}
-                    {user.can_view_orders && (
-                      <span className="rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5">
-                        Can view orders
+                      <span className="rounded-full bg-ops/10 px-2.5 py-1 text-xs font-semibold text-ops capitalize">
+                        {user.role}
                       </span>
                     )}
                   </div>
+
+                  {/* Editing panel */}
+                  {isEditing && editState!.role !== 'admin' && (
+                    <div className="mt-4 space-y-3 border-t border-border-subtle pt-3">
+                      {/* Platform access */}
+                      <div>
+                        <p className="text-xs font-medium text-foreground mb-2">Platform Access</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {platforms.map((p) => {
+                            const selected = editState!.platform_access.includes(p.slug)
+                            return (
+                              <button
+                                key={p.slug}
+                                onClick={() => togglePlatform(p.slug)}
+                                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                  selected
+                                    ? 'text-white'
+                                    : 'border border-border-subtle text-muted-foreground hover:bg-muted'
+                                }`}
+                                style={selected ? { backgroundColor: p.color_hex } : undefined}
+                              >
+                                {p.icon} {p.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Order visibility */}
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editState!.can_view_orders}
+                          onChange={(e) => setEditState({ ...editState!, can_view_orders: e.target.checked })}
+                          className="rounded border-border-subtle accent-ops"
+                        />
+                        <span className="text-xs text-foreground">Can view orders</span>
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Non-editing info */}
+                  {!isEditing && (
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                      {user.platform_access ? (
+                        user.platform_access.map((slug) => (
+                          <span key={slug} className="rounded bg-muted px-1.5 py-0.5">{slug}</span>
+                        ))
+                      ) : (
+                        <span className="italic">All platforms</span>
+                      )}
+                      {user.can_view_orders && (
+                        <span className="rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5">
+                          Orders ✓
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="mt-3 flex gap-2">
+                    {isEditing ? (
+                      <>
+                        <button
+                          onClick={() => saveUser(user.id)}
+                          disabled={saving}
+                          className="flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium bg-ops text-white hover:bg-ops-dark transition-colors disabled:opacity-50"
+                        >
+                          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelEditing}
+                          className="flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => startEditing(user)}
+                        className="rounded px-3 py-1.5 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors"
+                      >
+                        Edit Role
+                      </button>
+                    )}
+                  </div>
+
                   {user.last_sign_in && (
                     <p className="mt-2 text-[10px] text-muted-foreground">
                       Last sign-in: {new Date(user.last_sign_in).toLocaleString()}
                     </p>
                   )}
                 </div>
-              ))
-            )}
+              )
+            })}
           </div>
         </div>
       </div>
@@ -164,30 +331,21 @@ export default function AdminPage() {
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Settings className="h-5 w-5 text-ops" />
-          <h2 className="text-lg font-semibold text-foreground">System Settings</h2>
+          <h2 className="text-lg font-semibold text-foreground">System Info</h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-border-subtle bg-card p-4">
-            <h3 className="font-medium text-foreground mb-2">System Health</h3>
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">API Status</span>
-                <span className="rounded-full bg-green-500/10 px-2 py-0.5 font-medium text-green-600 dark:text-green-400">
-                  Operational
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Database</span>
-                <span className="rounded-full bg-green-500/10 px-2 py-0.5 font-medium text-green-600 dark:text-green-400">
-                  Healthy
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Total Users</span>
-                <span className="font-medium text-foreground">{users.length}</span>
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground">Total Users</p>
+            <p className="text-2xl font-bold text-foreground">{users.length}</p>
+          </div>
+          <div className="rounded-lg border border-border-subtle bg-card p-4">
+            <p className="text-xs text-muted-foreground">Platforms</p>
+            <p className="text-2xl font-bold text-foreground">{platforms.length}</p>
+          </div>
+          <div className="rounded-lg border border-border-subtle bg-card p-4">
+            <p className="text-xs text-muted-foreground">API Status</p>
+            <p className="text-sm font-medium text-green-600 dark:text-green-400 mt-1">✅ Operational</p>
           </div>
         </div>
       </div>
