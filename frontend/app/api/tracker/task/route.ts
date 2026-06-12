@@ -1,6 +1,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // PATCH /api/tracker/task — Merge a single key into task_statuses JSONB
 export async function PATCH(request: NextRequest) {
   const supabase = await createServerSupabaseClient()

@@ -1,6 +1,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/export/[table]?platform=[slug] — Download a table as CSV (admin & manager only)
 export async function GET(
   request: NextRequest,

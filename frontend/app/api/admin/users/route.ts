@@ -1,6 +1,8 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 async function assertAdmin(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
 ) {
