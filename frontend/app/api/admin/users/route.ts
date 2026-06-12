@@ -24,16 +24,31 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-// PATCH /api/admin/users — Update a user's role, platform access, or order visibility
+// PATCH /api/admin/users — Update a user's role, platform access, order visibility, or active status
 export async function PATCH(request: NextRequest) {
   const supabase = await createServerSupabaseClient()
   const adminUser = await assertAdmin(supabase)
   if (!adminUser) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
 
-  const { userId, role, platform_access, can_view_orders, worker_id } = await request.json()
+  const { userId, role, platform_access, can_view_orders, worker_id, is_active } = await request.json()
 
-  if (!userId || !role) {
-    return NextResponse.json({ error: 'userId and role are required' }, { status: 400 })
+  if (!userId) {
+    return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+  }
+
+  // Deactivate/reactivate only (no role change)
+  if (is_active !== undefined && !role) {
+    if (userId === adminUser.id) {
+      return NextResponse.json({ error: 'Cannot deactivate yourself' }, { status: 400 })
+    }
+    const { error } = await (createAdminClient() as any)
+      .from('app_users').update({ is_active }).eq('id', userId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  if (!role) {
+    return NextResponse.json({ error: 'role is required' }, { status: 400 })
   }
 
   if (userId === adminUser.id && role !== 'admin') {
@@ -45,6 +60,7 @@ export async function PATCH(request: NextRequest) {
     platform_access:  role === 'admin' ? null : (platform_access ?? []),
     can_view_orders:  role === 'admin' ? true : (can_view_orders ?? false),
     ...(worker_id !== undefined ? { worker_id } : {}),
+    ...(is_active !== undefined ? { is_active } : {}),
   }
 
   const { error } = await (createAdminClient() as any)

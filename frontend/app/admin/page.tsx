@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
 import { fetchPlatforms } from '@/lib/db'
 import type { UserRole, AppUser, Platform } from '@/types'
-import { Settings, Shield, Users, Loader2, Check, X } from 'lucide-react'
+import { Settings, Shield, Users, Loader2, Check, X, UserX, UserCheck } from 'lucide-react'
 
 const ROLES: UserRole[] = ['admin', 'manager', 'supervisor', 'worker']
 
@@ -114,6 +114,39 @@ export default function AdminPage() {
     }
   }
 
+  const toggleActive = async (userId: string, currentlyActive: boolean) => {
+    if (userId === appUser?.id) {
+      setMessage({ type: 'error', text: 'Cannot deactivate yourself' })
+      return
+    }
+
+    const confirmed = window.confirm(
+      currentlyActive
+        ? 'Deactivate this user? They will no longer be able to access the system.'
+        : 'Reactivate this user? They will regain access to the system.'
+    )
+    if (!confirmed) return
+
+    setSaving(true)
+    setMessage(null)
+
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, is_active: !currentlyActive }),
+    })
+
+    const data = await res.json()
+    setSaving(false)
+
+    if (res.ok) {
+      setMessage({ type: 'success', text: currentlyActive ? 'User deactivated' : 'User reactivated' })
+      loadUsers()
+    } else {
+      setMessage({ type: 'error', text: data.error || 'Failed to update user' })
+    }
+  }
+
   const togglePlatform = (slug: string) => {
     if (!editState) return
     setEditState({
@@ -199,14 +232,23 @@ export default function AdminPage() {
                 <div
                   key={user.id}
                   className={`rounded-lg border bg-card p-4 transition-colors ${
-                    isEditing ? 'border-ops/50' : 'border-border-subtle hover:border-ops/30'
+                    isEditing ? 'border-ops/50'
+                    : !user.is_active ? 'border-red-500/30 opacity-60'
+                    : 'border-border-subtle hover:border-ops/30'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-medium text-foreground">
-                        {user.display_name ?? user.email.split('@')[0]}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-foreground">
+                          {user.display_name ?? user.email.split('@')[0]}
+                        </h3>
+                        {!user.is_active && (
+                          <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-600 dark:text-red-400">
+                            Deactivated
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
 
@@ -307,12 +349,31 @@ export default function AdminPage() {
                         </button>
                       </>
                     ) : (
-                      <button
-                        onClick={() => startEditing(user)}
-                        className="rounded px-3 py-1.5 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors"
-                      >
-                        Edit Role
-                      </button>
+                      <>
+                        <button
+                          onClick={() => startEditing(user)}
+                          className="rounded px-3 py-1.5 text-xs font-medium border border-border-subtle hover:bg-muted transition-colors"
+                        >
+                          Edit Role
+                        </button>
+                        {!isSelf && (
+                          <button
+                            onClick={() => toggleActive(user.id, user.is_active)}
+                            disabled={saving}
+                            className={`flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                              user.is_active
+                                ? 'border border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/5'
+                                : 'border border-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/5'
+                            }`}
+                          >
+                            {user.is_active ? (
+                              <><UserX className="h-3 w-3" /> Deactivate</>
+                            ) : (
+                              <><UserCheck className="h-3 w-3" /> Reactivate</>
+                            )}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
 
