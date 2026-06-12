@@ -6,6 +6,7 @@ import React, {
 } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { isDemoMode } from '@/lib/demo'
 import type { AppUser, UserPermissions, UserRole } from '@/types'
 import { getPermissions } from '@/types'
 
@@ -16,6 +17,7 @@ interface AuthContextType {
   appUser:          AppUser | null
   permissions:      UserPermissions | null
   isLoading:        boolean
+  isDemo:           boolean
 
   // Auth actions
   signInWithGoogle: () => Promise<void>
@@ -29,20 +31,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// ── Demo mode fake user ─────────────────────────────────────────
+
+const DEMO_APP_USER: AppUser = {
+  id: 'demo-admin-001',
+  email: 'admin@workershub.demo',
+  display_name: 'Demo Admin',
+  role: 'admin',
+  platform_access: null,
+  worker_id: null,
+  can_view_orders: true,
+  is_active: true,
+  last_sign_in: new Date().toISOString(),
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: new Date().toISOString(),
+}
+
+// ── Provider ────────────────────────────────────────────────────
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const supabase = createClient()
+  const demo = isDemoMode()
+
   const [user,      setUser]      = useState<User | null>(null)
   const [session,   setSession]   = useState<Session | null>(null)
-  const [appUser,   setAppUser]   = useState<AppUser | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [appUser,   setAppUser]   = useState<AppUser | null>(demo ? DEMO_APP_USER : null)
+  const [isLoading, setIsLoading] = useState(!demo) // demo starts loaded
+
+  // ── Real Supabase auth (skipped in demo) ────────────────────
+  const supabase = demo ? null : createClient()
 
   const loadAppUser = useCallback(async (userId: string) => {
+    if (!supabase) return
     const { data } = await supabase
       .from('app_users').select('*').eq('id', userId).single()
     if (data) setAppUser(data as AppUser)
   }, [supabase])
 
   useEffect(() => {
+    if (demo || !supabase) return
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
@@ -63,9 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     )
     return () => subscription.unsubscribe()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const signInWithGoogle = useCallback(async () => {
+    if (!supabase) return
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -75,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    if (supabase) await supabase.auth.signOut()
     setAppUser(null)
   }, [supabase])
 
@@ -84,7 +111,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, loadAppUser])
 
   // ── Legacy helpers ──────────────────────────────────────────────
-  // Preserved so existing page/component code using useAuth() continues to work.
 
   const hasAccess = useCallback((channel: string): boolean => {
     if (!appUser) return false
@@ -110,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user, session, appUser,
       permissions: appUser ? getPermissions(appUser) : null,
       isLoading,
+      isDemo: demo,
       signInWithGoogle, signOut, refreshAppUser,
       hasAccess, hasRole,
     }}>
