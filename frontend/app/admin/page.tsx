@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
 import { fetchPlatforms } from '@/lib/db'
 import type { UserRole, AppUser, Platform } from '@/types'
-import { Settings, Shield, Users, Loader2, Check, X, UserX, UserCheck } from 'lucide-react'
+import { Settings, Shield, Users, Loader2, Check, X, UserX, UserCheck, Trash2 } from 'lucide-react'
 
 const ROLES: UserRole[] = ['admin', 'manager', 'supervisor', 'worker']
 
@@ -151,6 +151,43 @@ export default function AdminPage() {
       loadUsers()
     } else {
       setMessage({ type: 'error', text: data.error || 'Failed to update user' })
+    }
+  }
+
+  const deleteUser = async (userId: string, displayName: string) => {
+    if (userId === appUser?.id) {
+      setMessage({ type: 'error', text: 'Cannot delete yourself' })
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Permanently delete user "${displayName}"? This will remove their account and all associated data. This action cannot be undone.`
+    )
+    if (!confirmed) return
+
+    // Double confirm for safety
+    const doubleConfirm = window.confirm(
+      `Are you absolutely sure? Type OK to confirm deletion of "${displayName}".`
+    )
+    if (!doubleConfirm) return
+
+    setSaving(true)
+    setMessage(null)
+
+    const res = await fetch('/api/admin/users', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+
+    const data = await res.json()
+    setSaving(false)
+
+    if (res.ok) {
+      setMessage({ type: 'success', text: `User "${displayName}" has been permanently deleted` })
+      loadUsers()
+    } else {
+      setMessage({ type: 'error', text: data.error || 'Failed to delete user' })
     }
   }
 
@@ -364,21 +401,30 @@ export default function AdminPage() {
                           Edit Role
                         </button>
                         {!isSelf && (
-                          <button
-                            onClick={() => toggleActive(user.id, user.is_active)}
-                            disabled={saving}
-                            className={`flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                              user.is_active
-                                ? 'border border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/5'
-                                : 'border border-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/5'
-                            }`}
-                          >
-                            {user.is_active ? (
-                              <><UserX className="h-3 w-3" /> Deactivate</>
-                            ) : (
-                              <><UserCheck className="h-3 w-3" /> Reactivate</>
-                            )}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => toggleActive(user.id, user.is_active)}
+                              disabled={saving}
+                              className={`flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                                user.is_active
+                                  ? 'border border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/5'
+                                  : 'border border-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/5'
+                              }`}
+                            >
+                              {user.is_active ? (
+                                <><UserX className="h-3 w-3" /> Deactivate</>
+                              ) : (
+                                <><UserCheck className="h-3 w-3" /> Reactivate</>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => deleteUser(user.id, user.display_name ?? user.email)}
+                              disabled={saving}
+                              className="flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                            >
+                              <Trash2 className="h-3 w-3" /> Delete
+                            </button>
+                          </>
                         )}
                       </>
                     )}

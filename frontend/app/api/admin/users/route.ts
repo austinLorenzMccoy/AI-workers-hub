@@ -68,3 +68,36 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }
+
+// DELETE /api/admin/users — Permanently delete a user (admin only)
+export async function DELETE(request: NextRequest) {
+  const supabase = await createServerSupabaseClient()
+  const adminUser = await assertAdmin(supabase)
+  if (!adminUser) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+
+  const { userId } = await request.json()
+
+  if (!userId) {
+    return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+  }
+
+  if (userId === adminUser.id) {
+    return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+
+  // Delete from app_users table first
+  const { error: dbError } = await (admin as any)
+    .from('app_users').delete().eq('id', userId)
+  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
+
+  // Also delete from Supabase Auth
+  const { error: authError } = await admin.auth.admin.deleteUser(userId)
+  if (authError) {
+    // User removed from app_users but auth delete failed — log but don't fail
+    console.error('Auth user delete failed:', authError.message)
+  }
+
+  return NextResponse.json({ success: true })
+}
