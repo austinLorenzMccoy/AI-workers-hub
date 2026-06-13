@@ -1,13 +1,18 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { CommandStrip } from './command-strip'
 import { SignalNav } from './signal-nav'
 
+const SHELL_BYPASS = ['/', '/login']
+
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const { user } = useAuth()
 
-  if (!user) {
+  // Landing page and login page render without the app shell
+  if (!user || SHELL_BYPASS.includes(pathname)) {
     return children
   }
 

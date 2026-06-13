@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (!user && PROTECTED.some(p => pathname.startsWith(p))) {
-    const url = new URL('/', request.url) // Note: LoginPage is at root '/' in this project, not '/login'
+    const url = new URL('/login', request.url)
     url.searchParams.set('next', pathname)
     return NextResponse.redirect(url)
   }
@@ -50,7 +50,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (user && pathname === '/') {
+  // Redirect authenticated users from /login to dashboard
+  if (user && pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

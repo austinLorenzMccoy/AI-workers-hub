@@ -1,138 +1,226 @@
-'use client'
+import Link from 'next/link'
+import { ArrowRight, Shield, BarChart3, Users, Zap, Globe, Lock } from 'lucide-react'
 
-import { Suspense } from 'react'
-import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
-
-function LoginContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { appUser, isLoading, isDemo, signInWithGoogle } = useAuth()
-  const [error, setError] = useState('')
-  const [signingIn, setSigningIn] = useState(false)
-
-  // If already authenticated (or demo mode), redirect to dashboard
-  useEffect(() => {
-    if (!isLoading && appUser) {
-      const next = searchParams.get('next') ?? '/dashboard'
-      router.push(next)
-    }
-  }, [appUser, isLoading, router, searchParams])
-
-  // Show OAuth error passed from callback redirect
-  useEffect(() => {
-    if (searchParams.get('error') === 'auth_failed') {
-      setError('Authentication failed. Please try again.')
-    }
-  }, [searchParams])
-
-  const handleGoogleSignIn = async () => {
-    setSigningIn(true)
-    setError('')
-    try {
-      await signInWithGoogle()
-    } catch (err) {
-      setError((err as Error).message)
-      setSigningIn(false)
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
-      </div>
-    )
-  }
-
-  // Demo mode: show a banner while redirecting
-  if (isDemo && appUser) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="text-center space-y-4">
-          <div className="h-8 w-8 mx-auto animate-spin rounded-full border-2 border-slate-600 border-t-violet-500" />
-          <p className="text-slate-400 text-sm">Entering demo mode…</p>
-        </div>
-      </div>
-    )
-  }
-
+export default function LandingPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <div className="w-full max-w-md">
-        <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 backdrop-blur p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white">WorkersHub</h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Intelligence Control Room for AI Workers
+    <div className="min-h-screen bg-slate-950 text-white">
+      {/* ── Hero Section ─────────────────────────────────── */}
+      <section className="relative min-h-screen flex items-center overflow-hidden">
+        {/* Background image with overlay */}
+        <div className="absolute inset-0">
+          <img
+            src="/landing-bg.jpg"
+            alt="Team collaboration"
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/90 to-slate-950/70" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/50" />
+        </div>
+
+        {/* Nav */}
+        <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-5 lg:px-12">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 flex items-center justify-center">
+              <Zap className="h-4 w-4 text-white" />
+            </div>
+            <span className="text-lg font-bold tracking-tight">WorkersHub</span>
+          </div>
+          <Link
+            href="/login"
+            className="rounded-lg border border-white/20 bg-white/5 backdrop-blur px-5 py-2 text-sm font-medium hover:bg-white/10 transition-colors"
+          >
+            Sign In
+          </Link>
+        </nav>
+
+        {/* Hero content */}
+        <div className="relative z-10 mx-auto max-w-7xl px-6 py-32 lg:px-12">
+          <div className="max-w-2xl">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-medium text-violet-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+              Trusted by AI annotation teams worldwide
+            </div>
+
+            <h1 className="text-5xl font-extrabold leading-tight tracking-tight lg:text-6xl">
+              Command Centre for{' '}
+              <span className="bg-gradient-to-r from-violet-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                AI Workers
+              </span>
+            </h1>
+
+            <p className="mt-6 text-lg leading-relaxed text-slate-300">
+              Manage hundreds of data annotators across 9 platforms from one place.
+              Real-time tracking, role-based access control, automated alerts, and
+              full audit trails — replacing spreadsheets forever.
+            </p>
+
+            <div className="mt-10 flex flex-wrap gap-4">
+              <Link
+                href="/login"
+                className="group flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-7 py-3.5 text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all"
+              >
+                Get Started
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+              <a
+                href="#features"
+                className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 backdrop-blur px-7 py-3.5 text-sm font-medium hover:bg-white/10 transition-colors"
+              >
+                Explore Features
+              </a>
+            </div>
+
+            {/* Stats */}
+            <div className="mt-16 grid grid-cols-3 gap-8">
+              <div>
+                <p className="text-3xl font-bold text-white">9</p>
+                <p className="mt-1 text-sm text-slate-400">AI Platforms</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold text-white">4</p>
+                <p className="mt-1 text-sm text-slate-400">Role Tiers</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold text-white">100%</p>
+                <p className="mt-1 text-sm text-slate-400">RLS Protected</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Features Section ─────────────────────────────── */}
+      <section id="features" className="relative py-24 px-6 lg:px-12">
+        <div className="mx-auto max-w-7xl">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold lg:text-4xl">
+              Everything you need to manage{' '}
+              <span className="text-violet-400">AI operations</span>
+            </h2>
+            <p className="mt-4 text-lg text-slate-400 max-w-2xl mx-auto">
+              Built for teams who manage large-scale annotation workforces across multiple platforms.
             </p>
           </div>
 
-          {isDemo && (
-            <div className="mb-4 rounded-lg border border-violet-500/20 bg-violet-500/10 p-3">
-              <p className="text-sm text-violet-300">
-                🎯 <strong>Demo Mode</strong> — Showing UI preview with sample data.
-              </p>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                icon: <BarChart3 className="h-6 w-6" />,
+                title: 'Signal Grid',
+                desc: 'Live worker tracker with dynamic JSONB task columns that adapt per platform. Track status, warnings, and progress at a glance.',
+                color: 'from-blue-500 to-cyan-500',
+              },
+              {
+                icon: <Users className="h-6 w-6" />,
+                title: 'Field Roster',
+                desc: 'Complete worker registry with geo-work test tracking, account types, and platform assignments.',
+                color: 'from-green-500 to-emerald-500',
+              },
+              {
+                icon: <Shield className="h-6 w-6" />,
+                title: 'Role-Based Access',
+                desc: '4-tier role system — Admin, Manager, Supervisor, Worker — with row-level security enforced at the database.',
+                color: 'from-violet-500 to-purple-500',
+              },
+              {
+                icon: <Globe className="h-6 w-6" />,
+                title: '9 Platforms',
+                desc: 'Oneforma, Telus, Data Annotation, Outlier, Mercor AI, Remotasks, Appen, Clickworker, and Scale AI — all in one dashboard.',
+                color: 'from-orange-500 to-amber-500',
+              },
+              {
+                icon: <Lock className="h-6 w-6" />,
+                title: 'Audit Trails',
+                desc: 'Every task status change is logged with user and timestamp. Full history for compliance and accountability.',
+                color: 'from-red-500 to-pink-500',
+              },
+              {
+                icon: <Zap className="h-6 w-6" />,
+                title: 'Automated Alerts',
+                desc: 'Slack notifications on warning escalations and daily platform summaries via Edge Functions.',
+                color: 'from-yellow-500 to-orange-500',
+              },
+            ].map((feature) => (
+              <div
+                key={feature.title}
+                className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 hover:bg-slate-900 transition-all duration-300"
+              >
+                <div className={`mb-4 inline-flex rounded-lg bg-gradient-to-br ${feature.color} p-2.5`}>
+                  {feature.icon}
+                </div>
+                <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-400">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Platforms Section ────────────────────────────── */}
+      <section className="py-20 px-6 lg:px-12 border-t border-slate-800/50">
+        <div className="mx-auto max-w-7xl text-center">
+          <h2 className="text-2xl font-bold lg:text-3xl mb-12">
+            Supported Platforms
+          </h2>
+          <div className="flex flex-wrap items-center justify-center gap-6">
+            {[
+              { name: 'Oneforma', icon: '🟣', color: '#8B5CF6' },
+              { name: 'Telus', icon: '🔵', color: '#3B82F6' },
+              { name: 'Data Annotation', icon: '🟢', color: '#10B981' },
+              { name: 'Outlier', icon: '🟠', color: '#F97316' },
+              { name: 'Mercor AI', icon: '🩷', color: '#EC4899' },
+              { name: 'Remotasks', icon: '🟡', color: '#EAB308' },
+              { name: 'Appen', icon: '🔷', color: '#0EA5E9' },
+              { name: 'Clickworker', icon: '🔶', color: '#F59E0B' },
+              { name: 'Scale AI', icon: '⚫', color: '#6B7280' },
+            ].map((p) => (
+              <div
+                key={p.name}
+                className="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/50 px-5 py-2.5 text-sm font-medium"
+              >
+                <span className="text-lg">{p.icon}</span>
+                <span style={{ color: p.color }}>{p.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA Section ──────────────────────────────────── */}
+      <section className="py-24 px-6 lg:px-12">
+        <div className="mx-auto max-w-3xl text-center">
+          <h2 className="text-3xl font-bold lg:text-4xl">
+            Ready to take control?
+          </h2>
+          <p className="mt-4 text-lg text-slate-400">
+            Stop managing AI workers through spreadsheets. Get started with WorkersHub today.
+          </p>
+          <div className="mt-10">
+            <Link
+              href="/login"
+              className="group inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-8 py-4 text-base font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all"
+            >
+              Sign In with Google
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Footer ───────────────────────────────────────── */}
+      <footer className="border-t border-slate-800/50 py-8 px-6 lg:px-12">
+        <div className="mx-auto max-w-7xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded bg-gradient-to-br from-violet-500 to-blue-600 flex items-center justify-center">
+              <Zap className="h-3 w-3 text-white" />
             </div>
-          )}
-
-          {error && (
-            <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
-              <p className="text-sm text-red-400">{error}</p>
-            </div>
-          )}
-
-          <button
-            id="google-signin-btn"
-            onClick={handleGoogleSignIn}
-            disabled={signingIn}
-            className="w-full flex items-center justify-center gap-3 rounded-lg border border-slate-600 bg-slate-800 px-4 py-3 font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
-          >
-            {signingIn ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-white" />
-            ) : (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  fill="#EA4335"
-                />
-              </svg>
-            )}
-            {signingIn ? 'Redirecting to Google…' : 'Continue with Google'}
-          </button>
-
-          <p className="mt-6 text-center text-xs text-slate-500">
-            Access is granted by your administrator after your first sign-in.
+            <span className="text-sm font-medium text-slate-400">WorkersHub</span>
+          </div>
+          <p className="text-xs text-slate-600">
+            © {new Date().getFullYear()} WorkersHub. All rights reserved.
           </p>
         </div>
-      </div>
+      </footer>
     </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
-        </div>
-      }
-    >
-      <LoginContent />
-    </Suspense>
   )
 }
