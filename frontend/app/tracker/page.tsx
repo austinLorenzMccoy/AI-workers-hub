@@ -17,7 +17,7 @@ const WARNING_OPTIONS: WarningLevel[] = ['🟢 Clear', '🟡 Minor', '🔴 Serio
 const STATUS_OPTIONS: YNStatus[] = ['✅ Yes', '❌ No', '⏳ Pending', '🔄 In Progress', '➖ N/A']
 
 export default function TrackerPage() {
-  const { hasAccess } = useAuth()
+  const { hasAccess, isLoading: authLoading } = useAuth()
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [selectedPlatform, setSelectedPlatform] = useState<string>('')
   const [workers, setWorkers] = useState<WorkerTrackerRow[]>([])
@@ -48,6 +48,13 @@ export default function TrackerPage() {
     if (selectedPlatform) loadTrackerData(selectedPlatform)
   }, [selectedPlatform, loadTrackerData])
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
+      </div>
+    )
+  }
   if (!hasAccess('tracker')) {
     return <AccessDenied />
   }

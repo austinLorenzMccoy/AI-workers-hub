@@ -44,7 +44,7 @@ interface EditState {
 }
 
 export default function AdminPage() {
-  const { hasRole, appUser } = useAuth()
+  const { hasRole, appUser, isLoading: authLoading } = useAuth()
   const [users, setUsers] = useState<AppUser[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,6 +66,13 @@ export default function AdminPage() {
       .finally(() => setLoading(false))
   }, [loadUsers])
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
+      </div>
+    )
+  }
   if (!hasRole('admin')) {
     return <AccessDenied />
   }

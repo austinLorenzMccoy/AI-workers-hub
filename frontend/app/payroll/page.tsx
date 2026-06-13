@@ -23,7 +23,7 @@ const EMPTY_FORM = {
 }
 
 export default function PayrollPage() {
-  const { hasAccess, hasRole } = useAuth()
+  const { hasAccess, hasRole, isLoading: authLoading } = useAuth()
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [selectedPlatform, setSelectedPlatform] = useState<string>('')
   const [entries, setEntries] = useState<PayrollRow[]>([])
@@ -58,6 +58,13 @@ export default function PayrollPage() {
     if (selectedPlatform) loadPayroll(selectedPlatform, selectedYear, selectedMonth)
   }, [selectedPlatform, selectedYear, selectedMonth, loadPayroll])
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
+      </div>
+    )
+  }
   if (!hasAccess('payroll')) {
     return <AccessDenied />
   }

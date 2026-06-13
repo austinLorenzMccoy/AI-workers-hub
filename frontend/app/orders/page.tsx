@@ -18,7 +18,7 @@ const ORDER_STATUSES: OrderStatus[] = [
 ]
 
 export default function OrdersPage() {
-  const { hasAccess, permissions } = useAuth()
+  const { hasAccess, permissions, isLoading: authLoading } = useAuth()
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [selectedPlatform, setSelectedPlatform] = useState<string>('')
   const [orders, setOrders] = useState<OrderRow[]>([])
@@ -46,6 +46,13 @@ export default function OrdersPage() {
     if (selectedPlatform) loadOrders(selectedPlatform)
   }, [selectedPlatform, loadOrders])
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
+      </div>
+    )
+  }
   if (!hasAccess('orders')) {
     return <AccessDenied />
   }

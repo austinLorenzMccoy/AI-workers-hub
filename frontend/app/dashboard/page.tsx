@@ -9,7 +9,7 @@ import type { PlatformStatsRow } from '@/types'
 import { Users, ShoppingCart, AlertTriangle, DollarSign, Loader2 } from 'lucide-react'
 
 export default function DashboardPage() {
-  const { hasAccess } = useAuth()
+  const { hasAccess, isLoading: authLoading } = useAuth()
   const [stats, setStats] = useState<PlatformStatsRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -19,6 +19,14 @@ export default function DashboardPage() {
       setLoading(false)
     })
   }, [])
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
+      </div>
+    )
+  }
 
   if (!hasAccess('dashboard')) {
     return <AccessDenied />

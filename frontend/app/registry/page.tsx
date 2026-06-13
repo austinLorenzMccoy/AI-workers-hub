@@ -15,7 +15,7 @@ const ACCOUNT_TYPES: AccountType[] = ['Full-Time', 'Part-Time', 'Contractor', 'I
 const GEOWORK_OPTIONS: GeoworkStatus[] = ['✅ Passed', '❌ Failed', '⏳ Pending', '🔄 Retake', '⭕ Exempted']
 
 export default function RegistryPage() {
-  const { hasAccess } = useAuth()
+  const { hasAccess, isLoading: authLoading } = useAuth()
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [selectedPlatform, setSelectedPlatform] = useState<string>('')
   const [workers, setWorkers] = useState<WorkerRegistryRow[]>([])
@@ -43,6 +43,13 @@ export default function RegistryPage() {
     if (selectedPlatform) loadRegistry(selectedPlatform)
   }, [selectedPlatform, loadRegistry])
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
+      </div>
+    )
+  }
   if (!hasAccess('registry')) {
     return <AccessDenied />
   }
