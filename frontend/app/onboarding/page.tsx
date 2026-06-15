@@ -30,8 +30,7 @@ export default function OnboardingPage() {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set())
   const [decryptedPasswords, setDecryptedPasswords] = useState<Record<string, string>>({})
-  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null)
-  const [editValue, setEditValue] = useState('')
+  const [editingRow, setEditingRow] = useState<OnboardingRow | null>(null)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -148,44 +147,34 @@ export default function OnboardingPage() {
     }
   }
 
-  const startEdit = (rowId: string, field: string, currentValue: string | null) => {
-    setEditingCell({ rowId, field })
-    setEditValue(currentValue ?? '')
-  }
-
-  const saveEdit = async () => {
-    if (!editingCell) return
-    const { rowId, field } = editingCell
-    const { error } = await updateOnboardingRow(rowId, { [field]: editValue || null } as any)
+  const handleSaveRow = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!editingRow) return
+    const fd = new FormData(e.currentTarget)
+    const updates: Record<string, unknown> = {
+      email: (fd.get('email') as string) || null,
+      phone: (fd.get('phone') as string) || null,
+      country: (fd.get('country') as string) || null,
+      referral: (fd.get('referral') as string) || null,
+      notes: (fd.get('notes') as string) || null,
+    }
+    const newPassword = fd.get('password') as string
+    if (newPassword) {
+      updates.password = newPassword
+    }
+    const { error } = await updateOnboardingRow(editingRow.id, updates as any)
     if (!error) {
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === rowId ? { ...r, [field]: editValue || null } : r
-        )
-      )
-      // Clear decrypted cache if password changed
-      if (field === 'password') {
-        setDecryptedPasswords((prev) => {
-          const next = { ...prev }
-          delete next[rowId]
-          return next
-        })
-        setVisiblePasswords((prev) => {
-          const next = new Set(prev)
-          next.delete(rowId)
-          return next
-        })
+      // Clear password cache since it may have changed
+      if (newPassword) {
+        setDecryptedPasswords((prev) => { const next = { ...prev }; delete next[editingRow.id]; return next })
+        setVisiblePasswords((prev) => { const next = new Set(prev); next.delete(editingRow.id); return next })
       }
       toast('Updated successfully', 'success')
+      setEditingRow(null)
+      loadData(selectedPlatform)
     } else {
       toast('Update failed', 'error')
     }
-    setEditingCell(null)
-  }
-
-  const cancelEdit = () => {
-    setEditingCell(null)
-    setEditValue('')
   }
 
   if (loading) {
@@ -360,9 +349,7 @@ export default function OnboardingPage() {
               {filteredRows.map((row) => (
                 <tr key={row.id} className="bg-card hover:bg-muted/50 transition-colors">
                   <td className="px-3 py-2 font-medium text-foreground whitespace-nowrap">{row.applicant_name}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
-                    <EditableCell rowId={row.id} field="email" value={row.email} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
-                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.email ?? '—'}</td>
                   <td className="px-3 py-2">
                     {row.password ? (
                       <div className="flex items-center gap-1">
@@ -379,51 +366,14 @@ export default function OnboardingPage() {
                             <Eye className="h-3 w-3 text-muted-foreground" />
                           )}
                         </button>
-                        {permissions?.canEditOrders && (
-                          <button
-                            onClick={() => startEdit(row.id, 'password', '')}
-                            className="p-0.5 hover:bg-muted rounded transition-colors"
-                            title="Change password"
-                          >
-                            <Pencil className="h-3 w-3 text-muted-foreground" />
-                          </button>
-                        )}
-                        {editingCell?.rowId === row.id && editingCell?.field === 'password' && (
-                          <div className="flex items-center gap-1">
-                            <input
-                              autoFocus
-                              type="text"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
-                              placeholder="New password"
-                              className="w-24 rounded border border-ops/50 bg-background px-1.5 py-0.5 text-xs focus:outline-none"
-                            />
-                            <button onClick={saveEdit} className="text-green-500 text-xs font-bold">✓</button>
-                            <button onClick={cancelEdit} className="text-red-500 text-xs font-bold">✕</button>
-                          </div>
-                        )}
                       </div>
-                    ) : permissions?.canEditOrders ? (
-                      <button
-                        onClick={() => startEdit(row.id, 'password', '')}
-                        className="text-[10px] text-ops hover:underline"
-                      >
-                        + Add password
-                      </button>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
-                    <EditableCell rowId={row.id} field="phone" value={row.phone} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
-                  </td>
-                  <td className="px-3 py-2 text-xs text-foreground">
-                    <EditableCell rowId={row.id} field="country" value={row.country} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
-                  </td>
-                  <td className="px-3 py-2 text-xs text-foreground">
-                    <EditableCell rowId={row.id} field="referral" value={row.referral} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
-                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.phone ?? '—'}</td>
+                  <td className="px-3 py-2 text-xs text-foreground">{row.country ?? '—'}</td>
+                  <td className="px-3 py-2 text-xs text-foreground">{row.referral ?? '—'}</td>
                   <td className="px-3 py-2">
                     {permissions?.canEditOrders ? (
                       <select
@@ -445,17 +395,27 @@ export default function OnboardingPage() {
                   <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                     {row.date_resolved ? new Date(row.date_resolved).toLocaleDateString() : '—'}
                   </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground max-w-[150px]">
-                    <EditableCell rowId={row.id} field="notes" value={row.notes} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
+                  <td className="px-3 py-2 text-xs text-muted-foreground max-w-[150px] truncate">
+                    {row.notes ?? '—'}
                   </td>
                   <td className="px-3 py-2">
                     {permissions?.canEditOrders && (
-                      <button
-                        onClick={() => handleDelete(row.id)}
-                        className="p-1 rounded hover:bg-red-500/10 transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setEditingRow(row)}
+                          className="p-1 rounded hover:bg-ops/10 transition-colors"
+                          title="Edit entry"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-ops" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(row.id)}
+                          className="p-1 rounded hover:bg-red-500/10 transition-colors"
+                          title="Delete entry"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -465,47 +425,61 @@ export default function OnboardingPage() {
         </div>
       )}
     </div>
-  )
-}
 
-/* ── Inline Editable Cell ──────────────────────────────────────── */
-function EditableCell({
-  rowId, field, value, editingCell, editValue, setEditValue,
-  startEdit, saveEdit, cancelEdit, canEdit,
-}: {
-  rowId: string; field: string; value: string | null
-  editingCell: { rowId: string; field: string } | null
-  editValue: string
-  setEditValue: (v: string) => void
-  startEdit: (rowId: string, field: string, value: string | null) => void
-  saveEdit: () => void; cancelEdit: () => void; canEdit: boolean
-}) {
-  const isEditing = editingCell?.rowId === rowId && editingCell?.field === field
-
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-1">
-        <input
-          autoFocus
-          type="text"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
-          onBlur={saveEdit}
-          className="w-full min-w-[60px] rounded border border-ops/50 bg-background px-1.5 py-0.5 text-xs focus:outline-none"
-        />
-      </div>
-    )
-  }
-
-  return (
-    <span
-      onClick={() => canEdit && startEdit(rowId, field, value)}
-      className={canEdit ? 'cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors' : ''}
-      title={canEdit ? 'Click to edit' : undefined}
-    >
-      {value ?? '—'}
-    </span>
+      {/* Edit Modal */}
+      {editingRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-lg mx-4 rounded-xl border border-border-subtle bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
+              <h2 className="text-lg font-semibold text-foreground">Edit Application</h2>
+              <button onClick={() => setEditingRow(null)} className="rounded p-1 hover:bg-muted">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveRow} className="px-6 py-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Applicant Name</label>
+                  <p className="text-sm font-medium text-foreground">{editingRow.applicant_name}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Email</label>
+                  <input name="email" type="email" defaultValue={editingRow.email ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">New Password</label>
+                  <input name="password" type="text" placeholder="Leave blank to keep current" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Phone</label>
+                  <input name="phone" type="tel" defaultValue={editingRow.phone ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Country</label>
+                  <input name="country" defaultValue={editingRow.country ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Referral</label>
+                  <input name="referral" defaultValue={editingRow.referral ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Notes</label>
+                <textarea name="notes" rows={2} defaultValue={editingRow.notes ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button type="button" onClick={() => setEditingRow(null)} className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium hover:bg-muted transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" className="rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
