@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { useTheme } from '@/lib/theme-context'
 import { GlobalSearch } from './global-search'
-import { LogOut, Settings, X, Sun, Moon, Monitor } from 'lucide-react'
+import { LogOut, Settings, X, Sun, Moon, Monitor, Bell } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 export function CommandStrip() {
   const router = useRouter()
@@ -13,6 +14,38 @@ export function CommandStrip() {
   const { theme, setTheme } = useTheme()
   const [showSettings, setShowSettings] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [alerts, setAlerts] = useState<any[]>([])
+  const [showAlerts, setShowAlerts] = useState(false)
+
+  const loadAlerts = useCallback(async () => {
+    if (appUser?.role !== 'admin') return
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('alert_notifications')
+      .select('*')
+      .eq('is_read', false)
+      .order('created_at', { ascending: false })
+      .limit(10)
+    setAlerts(data ?? [])
+  }, [appUser?.role])
+
+  useEffect(() => {
+    loadAlerts()
+    const interval = setInterval(loadAlerts, 30000)
+    return () => clearInterval(interval)
+  }, [loadAlerts])
+
+  const markRead = async (id: string) => {
+    const supabase = createClient()
+    await supabase.from('alert_notifications').update({ is_read: true }).eq('id', id)
+    setAlerts((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  const markAllRead = async () => {
+    const supabase = createClient()
+    await supabase.from('alert_notifications').update({ is_read: true }).eq('is_read', false)
+    setAlerts([])
+  }
 
   if (!appUser) return null
 
@@ -55,6 +88,59 @@ export function CommandStrip() {
           >
             <ThemeIcon className="h-4 w-4 text-muted-foreground" />
           </button>
+
+          {/* Alert bell */}
+          {appUser.role === 'admin' && (
+            <div className="relative">
+              <button
+                onClick={() => setShowAlerts(!showAlerts)}
+                className="rounded p-1.5 hover:bg-muted transition-colors relative"
+                title="Alerts"
+              >
+                <Bell className="h-4 w-4 text-muted-foreground" />
+                {alerts.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center">
+                    {alerts.length}
+                  </span>
+                )}
+              </button>
+
+              {showAlerts && (
+                <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-border-subtle bg-card shadow-xl z-50">
+                  <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
+                    <span className="text-xs font-semibold text-foreground">Alerts</span>
+                    {alerts.length > 0 && (
+                      <button onClick={markAllRead} className="text-[10px] text-ops hover:underline">
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {alerts.length === 0 ? (
+                      <p className="px-3 py-6 text-center text-xs text-muted-foreground">No unread alerts</p>
+                    ) : (
+                      alerts.map((alert) => (
+                        <div
+                          key={alert.id}
+                          onClick={() => markRead(alert.id)}
+                          className={`cursor-pointer border-b border-border-subtle px-3 py-2 hover:bg-muted/50 transition-colors ${
+                            alert.severity === 'critical' ? 'border-l-2 border-l-red-500' : 'border-l-2 border-l-yellow-500'
+                          }`}
+                        >
+                          <p className="text-xs font-medium text-foreground">{alert.title}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{alert.message}</p>
+                          <p className="text-[9px] text-muted-foreground mt-1">
+                            {new Date(alert.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="rounded p-1.5 hover:bg-muted transition-colors"

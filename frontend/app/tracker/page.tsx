@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
 import {
@@ -182,7 +183,7 @@ export default function TrackerPage() {
                 <tr key={worker.id} className="bg-card hover:bg-muted/50 transition-colors">
                   <td className="px-3 py-2">
                     <div>
-                      <p className="font-medium text-foreground text-xs">{worker.worker_name}</p>
+                      <Link href={`/worker/${worker.id}`} className="font-medium text-ops hover:underline text-xs">{worker.worker_name}</Link>
                       {worker.email && (
                         <p className="text-[10px] text-muted-foreground">{worker.email}</p>
                       )}
