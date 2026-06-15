@@ -3,11 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { LogOut, Settings, X } from 'lucide-react'
+import { useTheme } from '@/lib/theme-context'
+import { GlobalSearch } from './global-search'
+import { LogOut, Settings, X, Sun, Moon, Monitor } from 'lucide-react'
 
 export function CommandStrip() {
   const router = useRouter()
   const { appUser, signOut } = useAuth()
+  const { theme, setTheme } = useTheme()
   const [showSettings, setShowSettings] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -21,6 +24,17 @@ export function CommandStrip() {
     router.push('/')
   }
 
+  const cycleTheme = () => {
+    const next: Record<string, 'light' | 'dark' | 'system'> = {
+      dark: 'light',
+      light: 'system',
+      system: 'dark',
+    }
+    setTheme(next[theme])
+  }
+
+  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
+
   return (
     <>
       <div className="flex items-center justify-between border-b border-border-subtle bg-card px-6 py-3">
@@ -31,7 +45,16 @@ export function CommandStrip() {
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <GlobalSearch />
+
+          <button
+            onClick={cycleTheme}
+            className="rounded p-1.5 hover:bg-muted transition-colors"
+            title={`Theme: ${theme}`}
+          >
+            <ThemeIcon className="h-4 w-4 text-muted-foreground" />
+          </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="rounded p-1.5 hover:bg-muted transition-colors"
@@ -78,10 +101,22 @@ export function CommandStrip() {
               </p>
             </div>
             <div className="rounded-lg border border-border-subtle bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Orders Access</p>
-              <p className="mt-1 text-sm font-medium text-foreground">
-                {appUser.can_view_orders ? '✅ Granted' : '❌ Denied'}
-              </p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Theme</p>
+              <div className="mt-1 flex gap-1">
+                {(['dark', 'light', 'system'] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTheme(t)}
+                    className={`rounded px-2 py-0.5 text-xs font-medium capitalize transition-colors ${
+                      theme === t
+                        ? 'bg-ops text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
