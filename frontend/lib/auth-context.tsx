@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasAccess = useCallback((channel: string): boolean => {
     if (!appUser) return false
     const accessMap: Record<UserRole, string[]> = {
-      admin:      ['dashboard', 'tracker', 'registry', 'onboarding', 'orders', 'payroll', 'admin'],
+      admin:      ['dashboard', 'tracker', 'registry', 'onboarding', 'orders', 'payroll', 'activity', 'admin'],
       manager:    ['dashboard', 'tracker', 'registry', 'onboarding', 'payroll',
                    ...(appUser.can_view_orders ? ['orders'] : [])],
       supervisor: ['dashboard', 'tracker', 'registry',

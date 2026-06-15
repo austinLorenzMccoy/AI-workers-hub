@@ -5,6 +5,12 @@ import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
 import { SummaryCard } from '@/components/dashboard/summary-card'
 import { fetchPlatformStats } from '@/lib/db'
+import {
+  WorkersByPlatformChart,
+  PayrollByPlatformChart,
+  WarningBreakdownChart,
+  OrderStatusChart,
+} from '@/components/dashboard/charts'
 import type { PlatformStatsRow } from '@/types'
 import { Users, ShoppingCart, AlertTriangle, DollarSign, Loader2 } from 'lucide-react'
 
@@ -82,6 +88,14 @@ export default function DashboardPage() {
           value={`$${totals.payroll.toLocaleString()}`}
           icon={<DollarSign className="h-5 w-5" />}
         />
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <WorkersByPlatformChart stats={stats} />
+        <PayrollByPlatformChart stats={stats} />
+        <WarningBreakdownChart stats={stats} />
+        <OrderStatusChart stats={stats} />
       </div>
 
       <div>

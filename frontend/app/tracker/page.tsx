@@ -11,7 +11,8 @@ import {
   updateTaskStatus,
 } from '@/lib/db'
 import type { Platform, WorkerTrackerRow, PlatformTaskColumn, WarningLevel, YNStatus } from '@/types'
-import { Download, Loader2 } from 'lucide-react'
+import { Download, Upload, Loader2 } from 'lucide-react'
+import { ImportDialog, IMPORT_CONFIGS } from '@/components/import/import-dialog'
 
 const WARNING_OPTIONS: WarningLevel[] = ['🟢 Clear', '🟡 Minor', '🔴 Serious', '⚫ Banned', '➖ None']
 const STATUS_OPTIONS: YNStatus[] = ['✅ Yes', '❌ No', '⏳ Pending', '🔄 In Progress', '➖ N/A']
@@ -24,6 +25,7 @@ export default function TrackerPage() {
   const [taskColumns, setTaskColumns] = useState<PlatformTaskColumn[]>([])
   const [loading, setLoading] = useState(true)
   const [tableLoading, setTableLoading] = useState(false)
+  const [showImport, setShowImport] = useState(false)
 
   useEffect(() => {
     fetchPlatforms().then((data) => {
@@ -96,6 +98,7 @@ export default function TrackerPage() {
   const activePlatform = platforms.find((p) => p.slug === selectedPlatform)
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
@@ -104,13 +107,22 @@ export default function TrackerPage() {
             Worker task status tracking across platforms
           </p>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 rounded-lg border border-border-subtle bg-card px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          <Download className="h-4 w-4" />
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 rounded-lg border border-ops/20 bg-ops/5 px-4 py-2 text-sm font-medium text-ops hover:bg-ops/10 transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            Import
+          </button>
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 rounded-lg border border-border-subtle bg-card px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Platform tabs */}
@@ -242,5 +254,14 @@ export default function TrackerPage() {
         </div>
       )}
     </div>
+
+      {showImport && activePlatform && (
+        <ImportDialog
+          config={{ ...IMPORT_CONFIGS.worker_tracker, platformId: activePlatform.id }}
+          onComplete={() => { setShowImport(false); loadTrackerData(selectedPlatform) }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
+    </>
   )
 }

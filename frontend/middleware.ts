@@ -1,8 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PROTECTED     = ['/dashboard','/tracker','/registry','/onboarding','/orders','/payroll','/admin']
-const ADMIN_ONLY    = ['/admin']
+const PROTECTED     = ['/dashboard','/tracker','/registry','/onboarding','/orders','/payroll','/activity','/admin']
+const ADMIN_ONLY    = ['/admin','/activity']
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })

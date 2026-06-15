@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   ShoppingCart,
   DollarSign,
+  History,
   Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -50,6 +51,12 @@ const channels = [
     label: 'Payroll',
     icon: DollarSign,
     href: '/payroll',
+  },
+  {
+    id: 'activity',
+    label: 'Activity',
+    icon: History,
+    href: '/activity',
   },
   {
     id: 'admin',
