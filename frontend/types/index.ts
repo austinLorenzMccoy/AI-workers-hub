@@ -111,6 +111,26 @@ export interface PayrollRow {
   created_at: string
 }
 
+export type ApplicationStatus =
+  | '⏳ Pending' | '✅ Accepted' | '❌ Rejected' | '🔄 In Review' | '⚫ Withdrawn'
+
+export interface OnboardingRow {
+  id: string
+  platform_id: number
+  applicant_name: string
+  email: string | null
+  password: string | null
+  phone: string | null
+  country: string | null
+  referral: string | null
+  application_status: ApplicationStatus
+  date_applied: string
+  date_resolved: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface TaskStatusHistoryRow {
   id: string
   tracker_row_id: string

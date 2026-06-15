@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import type {
   AppUser, WorkerTrackerRow, WorkerRegistryRow,
   OrderRow, PayrollRow, Platform, PlatformTaskColumn,
-  PlatformStatsRow, TaskStatusHistoryRow,
+  PlatformStatsRow, TaskStatusHistoryRow, OnboardingRow,
 } from '@/types'
 
 // ── Platforms ───────────────────────────────────────────────────
@@ -222,4 +222,45 @@ export async function fetchAllUsers(): Promise<AppUser[]> {
   const { data, error } = await supabase.from('app_users').select('*').order('created_at')
   if (error) { console.error('fetchAllUsers:', error.message); return [] }
   return (data ?? []) as AppUser[]
+}
+
+// ── Onboarding ──────────────────────────────────────────────────
+
+export async function fetchOnboardingByPlatform(
+  platformSlug: string, statusFilter?: string
+): Promise<OnboardingRow[]> {
+  const supabase = createClient()
+  let query = (supabase as any)
+    .from('onboarding')
+    .select('*, platforms!inner(slug)')
+    .eq('platforms.slug', platformSlug)
+    .order('date_applied', { ascending: false })
+  if (statusFilter) query = query.eq('application_status', statusFilter)
+  const { data, error } = await query
+  if (error) { console.error('fetchOnboardingByPlatform:', error.message); return [] }
+  return (data ?? []) as OnboardingRow[]
+}
+
+export async function insertOnboardingRow(
+  row: Omit<OnboardingRow, 'id' | 'created_at' | 'updated_at'>
+): Promise<{ id: string | null; error: string | null }> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('onboarding').insert(row as any).select('id').single()
+  return { id: (data as any)?.id ?? null, error: error?.message ?? null }
+}
+
+export async function updateOnboardingRow(
+  rowId: string,
+  updates: Partial<Pick<OnboardingRow, 'application_status' | 'date_resolved' | 'notes' | 'email' | 'password' | 'phone' | 'country' | 'referral'>>
+): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await (supabase as any).from('onboarding').update(updates).eq('id', rowId)
+  return { error: error?.message ?? null }
+}
+
+export async function deleteOnboardingRow(rowId: string): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('onboarding').delete().eq('id', rowId)
+  return { error: error?.message ?? null }
 }

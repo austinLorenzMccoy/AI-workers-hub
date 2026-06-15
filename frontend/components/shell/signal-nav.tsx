@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Grid3x3,
   Users,
+  ClipboardCheck,
   ShoppingCart,
   DollarSign,
   Settings,
@@ -31,6 +32,12 @@ const channels = [
     label: 'Registry',
     icon: Users,
     href: '/registry',
+  },
+  {
+    id: 'onboarding',
+    label: 'Onboarding',
+    icon: ClipboardCheck,
+    href: '/onboarding',
   },
   {
     id: 'orders',
