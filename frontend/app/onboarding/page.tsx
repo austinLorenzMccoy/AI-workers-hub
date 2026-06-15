@@ -11,7 +11,9 @@ import {
   deleteOnboardingRow,
 } from '@/lib/db'
 import type { Platform, OnboardingRow, ApplicationStatus } from '@/types'
-import { Plus, Loader2, X, Eye, EyeOff, Trash2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/lib/toast-context'
+import { Plus, Loader2, X, Eye, EyeOff, Trash2, Pencil } from 'lucide-react'
 
 const STATUS_OPTIONS: ApplicationStatus[] = [
   '⏳ Pending', '✅ Accepted', '❌ Rejected', '🔄 In Review', '⚫ Withdrawn',
@@ -27,6 +29,10 @@ export default function OnboardingPage() {
   const [showForm, setShowForm] = useState(false)
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set())
+  const [decryptedPasswords, setDecryptedPasswords] = useState<Record<string, string>>({})
+  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchPlatforms().then((data) => {
@@ -57,13 +63,31 @@ export default function OnboardingPage() {
     ? rows.filter((r) => r.application_status === selectedStatus)
     : rows
 
-  const togglePassword = (id: string) => {
-    setVisiblePasswords((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const togglePassword = async (id: string) => {
+    if (visiblePasswords.has(id)) {
+      // Hide
+      setVisiblePasswords((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    } else {
+      // Decrypt and show
+      if (!decryptedPasswords[id]) {
+        const supabase = createClient()
+        const { data, error } = await supabase.rpc('decrypt_onboarding_password', { row_id: id })
+        if (!error && data) {
+          setDecryptedPasswords((prev) => ({ ...prev, [id]: data }))
+        } else {
+          setDecryptedPasswords((prev) => ({ ...prev, [id]: '⚠️ Decrypt failed' }))
+        }
+      }
+      setVisiblePasswords((prev) => {
+        const next = new Set(prev)
+        next.add(id)
+        return next
+      })
+    }
   }
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -120,7 +144,48 @@ export default function OnboardingPage() {
     const { error } = await deleteOnboardingRow(rowId)
     if (!error) {
       setRows((prev) => prev.filter((r) => r.id !== rowId))
+      toast('Record deleted', 'success')
     }
+  }
+
+  const startEdit = (rowId: string, field: string, currentValue: string | null) => {
+    setEditingCell({ rowId, field })
+    setEditValue(currentValue ?? '')
+  }
+
+  const saveEdit = async () => {
+    if (!editingCell) return
+    const { rowId, field } = editingCell
+    const { error } = await updateOnboardingRow(rowId, { [field]: editValue || null } as any)
+    if (!error) {
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === rowId ? { ...r, [field]: editValue || null } : r
+        )
+      )
+      // Clear decrypted cache if password changed
+      if (field === 'password') {
+        setDecryptedPasswords((prev) => {
+          const next = { ...prev }
+          delete next[rowId]
+          return next
+        })
+        setVisiblePasswords((prev) => {
+          const next = new Set(prev)
+          next.delete(rowId)
+          return next
+        })
+      }
+      toast('Updated successfully', 'success')
+    } else {
+      toast('Update failed', 'error')
+    }
+    setEditingCell(null)
+  }
+
+  const cancelEdit = () => {
+    setEditingCell(null)
+    setEditValue('')
   }
 
   if (loading) {
@@ -295,12 +360,14 @@ export default function OnboardingPage() {
               {filteredRows.map((row) => (
                 <tr key={row.id} className="bg-card hover:bg-muted/50 transition-colors">
                   <td className="px-3 py-2 font-medium text-foreground whitespace-nowrap">{row.applicant_name}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.email ?? '—'}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">
+                    <EditableCell rowId={row.id} field="email" value={row.email} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
+                  </td>
                   <td className="px-3 py-2">
                     {row.password ? (
                       <div className="flex items-center gap-1">
                         <span className="text-xs font-mono text-foreground">
-                          {visiblePasswords.has(row.id) ? row.password : '••••••••'}
+                          {visiblePasswords.has(row.id) ? (decryptedPasswords[row.id] ?? '...') : '••••••••'}
                         </span>
                         <button
                           onClick={() => togglePassword(row.id)}
@@ -312,14 +379,51 @@ export default function OnboardingPage() {
                             <Eye className="h-3 w-3 text-muted-foreground" />
                           )}
                         </button>
+                        {permissions?.canEditOrders && (
+                          <button
+                            onClick={() => startEdit(row.id, 'password', '')}
+                            className="p-0.5 hover:bg-muted rounded transition-colors"
+                            title="Change password"
+                          >
+                            <Pencil className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        )}
+                        {editingCell?.rowId === row.id && editingCell?.field === 'password' && (
+                          <div className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
+                              placeholder="New password"
+                              className="w-24 rounded border border-ops/50 bg-background px-1.5 py-0.5 text-xs focus:outline-none"
+                            />
+                            <button onClick={saveEdit} className="text-green-500 text-xs font-bold">✓</button>
+                            <button onClick={cancelEdit} className="text-red-500 text-xs font-bold">✕</button>
+                          </div>
+                        )}
                       </div>
+                    ) : permissions?.canEditOrders ? (
+                      <button
+                        onClick={() => startEdit(row.id, 'password', '')}
+                        className="text-[10px] text-ops hover:underline"
+                      >
+                        + Add password
+                      </button>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.phone ?? '—'}</td>
-                  <td className="px-3 py-2 text-xs text-foreground">{row.country ?? '—'}</td>
-                  <td className="px-3 py-2 text-xs text-foreground">{row.referral ?? '—'}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">
+                    <EditableCell rowId={row.id} field="phone" value={row.phone} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-foreground">
+                    <EditableCell rowId={row.id} field="country" value={row.country} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-foreground">
+                    <EditableCell rowId={row.id} field="referral" value={row.referral} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
+                  </td>
                   <td className="px-3 py-2">
                     {permissions?.canEditOrders ? (
                       <select
@@ -341,8 +445,8 @@ export default function OnboardingPage() {
                   <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                     {row.date_resolved ? new Date(row.date_resolved).toLocaleDateString() : '—'}
                   </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground max-w-[150px] truncate">
-                    {row.notes ?? '—'}
+                  <td className="px-3 py-2 text-xs text-muted-foreground max-w-[150px]">
+                    <EditableCell rowId={row.id} field="notes" value={row.notes} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit} canEdit={!!permissions?.canEditOrders} />
                   </td>
                   <td className="px-3 py-2">
                     {permissions?.canEditOrders && (
@@ -363,3 +467,45 @@ export default function OnboardingPage() {
     </div>
   )
 }
+
+/* ── Inline Editable Cell ──────────────────────────────────────── */
+function EditableCell({
+  rowId, field, value, editingCell, editValue, setEditValue,
+  startEdit, saveEdit, cancelEdit, canEdit,
+}: {
+  rowId: string; field: string; value: string | null
+  editingCell: { rowId: string; field: string } | null
+  editValue: string
+  setEditValue: (v: string) => void
+  startEdit: (rowId: string, field: string, value: string | null) => void
+  saveEdit: () => void; cancelEdit: () => void; canEdit: boolean
+}) {
+  const isEditing = editingCell?.rowId === rowId && editingCell?.field === field
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          autoFocus
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
+          onBlur={saveEdit}
+          className="w-full min-w-[60px] rounded border border-ops/50 bg-background px-1.5 py-0.5 text-xs focus:outline-none"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <span
+      onClick={() => canEdit && startEdit(rowId, field, value)}
+      className={canEdit ? 'cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors' : ''}
+      title={canEdit ? 'Click to edit' : undefined}
+    >
+      {value ?? '—'}
+    </span>
+  )
+}
+
