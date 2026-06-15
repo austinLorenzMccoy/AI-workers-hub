@@ -146,6 +146,12 @@ export async function updateRegistryRow(
   return { error: error?.message ?? null }
 }
 
+export async function deleteRegistryRow(rowId: string): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('workers_registry').delete().eq('id', rowId)
+  return { error: error?.message ?? null }
+}
+
 // ── Orders ──────────────────────────────────────────────────────
 
 export async function fetchOrdersByPlatform(
@@ -174,7 +180,7 @@ export async function createOrder(
 
 export async function updateOrder(
   orderId: string,
-  updates: Partial<Pick<OrderRow, 'status' | 'proxy' | 'owner_name' | 'order_date' | 'notes'>>
+  updates: Partial<OrderRow>
 ): Promise<{ error: string | null }> {
   const supabase = createClient()
   const { error } = await (supabase as any).from('orders').update(updates).eq('id', orderId)
@@ -212,6 +218,20 @@ export async function upsertPayrollRow(
   const { error } = await supabase.from('payroll').upsert(row, {
     onConflict: 'platform_id,account_code,worker_name,month,year',
   })
+  return { error: error?.message ?? null }
+}
+
+export async function updatePayrollRow(
+  rowId: string, updates: Partial<PayrollRow>
+): Promise<{ error: string | null }> {
+  const supabase = createClient() as any
+  const { error } = await supabase.from('payroll').update(updates).eq('id', rowId)
+  return { error: error?.message ?? null }
+}
+
+export async function deletePayrollRow(rowId: string): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('payroll').delete().eq('id', rowId)
   return { error: error?.message ?? null }
 }
 

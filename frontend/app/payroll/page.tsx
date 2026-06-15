@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
-import { fetchPlatforms, fetchPayrollByPlatform, upsertPayrollRow } from '@/lib/db'
+import { fetchPlatforms, fetchPayrollByPlatform, upsertPayrollRow, updatePayrollRow, deletePayrollRow } from '@/lib/db'
 import type { Platform, PayrollRow } from '@/types'
-import { Download, Loader2, Plus, X } from 'lucide-react'
+import { useToast } from '@/lib/toast-context'
+import { Download, Loader2, Plus, X, Pencil, Trash2 } from 'lucide-react'
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -38,6 +39,10 @@ export default function PayrollPage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
+
+  // Edit modal
+  const [editingRow, setEditingRow] = useState<PayrollRow | null>(null)
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchPlatforms().then((data) => {
@@ -113,12 +118,43 @@ export default function PayrollPage() {
     } else {
       setFormSuccess('Payroll record saved successfully!')
       setForm(EMPTY_FORM)
-      // Reload data
       loadPayroll(selectedPlatform, selectedYear, selectedMonth)
       setTimeout(() => {
         setFormSuccess('')
         setShowForm(false)
       }, 1500)
+    }
+  }
+
+  const handleDelete = async (rowId: string) => {
+    if (!window.confirm('Delete this payroll record?')) return
+    const { error } = await deletePayrollRow(rowId)
+    if (!error) {
+      setEntries((prev) => prev.filter((r) => r.id !== rowId))
+      toast('Record deleted', 'success')
+    }
+  }
+
+  const handleSaveRow = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!editingRow) return
+    const fd = new FormData(e.currentTarget)
+    const updates: Record<string, unknown> = {
+      worker_name: (fd.get('worker_name') as string) || editingRow.worker_name,
+      account_code: (fd.get('account_code') as string) || editingRow.account_code,
+      month: (fd.get('month') as string) || editingRow.month,
+      year: Number(fd.get('year')) || editingRow.year,
+      tasks_done: Number(fd.get('tasks_done')) || 0,
+      pay_usd: Number(fd.get('pay_usd')) || 0,
+      notes: (fd.get('notes') as string) || null,
+    }
+    const { error } = await updatePayrollRow(editingRow.id, updates as any)
+    if (!error) {
+      toast('Updated successfully', 'success')
+      setEditingRow(null)
+      loadPayroll(selectedPlatform, selectedYear, selectedMonth)
+    } else {
+      toast('Update failed', 'error')
     }
   }
 
@@ -131,6 +167,7 @@ export default function PayrollPage() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
@@ -388,6 +425,7 @@ export default function PayrollPage() {
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Tasks Done</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Pay (USD)</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Notes</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -403,6 +441,26 @@ export default function PayrollPage() {
                   <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">
                     {entry.notes ?? '—'}
                   </td>
+                  <td className="px-4 py-3">
+                    {canEdit && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setEditingRow(entry)}
+                          className="p-1 rounded hover:bg-ops/10 transition-colors"
+                          title="Edit entry"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-ops" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(entry.id)}
+                          className="p-1 rounded hover:bg-red-500/10 transition-colors"
+                          title="Delete entry"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -410,5 +468,66 @@ export default function PayrollPage() {
         </div>
       )}
     </div>
+
+    {/* Edit Modal */}
+    {editingRow && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="w-full max-w-lg mx-4 rounded-xl border border-border-subtle bg-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
+            <h2 className="text-lg font-semibold text-foreground">Edit Payroll Record</h2>
+            <button onClick={() => setEditingRow(null)} className="rounded p-1 hover:bg-muted">
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+          <form onSubmit={handleSaveRow} className="px-6 py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Worker Name *</label>
+                <input name="worker_name" required defaultValue={editingRow.worker_name} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Account Code *</label>
+                <input name="account_code" required defaultValue={editingRow.account_code} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Month</label>
+                <select name="month" defaultValue={editingRow.month} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50">
+                  {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Year</label>
+                <select name="year" defaultValue={editingRow.year} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50">
+                  {Array.from({ length: 6 }, (_, i) => 2025 + i).map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Tasks Done</label>
+                <input name="tasks_done" type="number" min={0} defaultValue={editingRow.tasks_done} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Pay (USD)</label>
+                <input name="pay_usd" type="number" min={0} step={0.01} defaultValue={editingRow.pay_usd} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Notes</label>
+              <textarea name="notes" rows={2} defaultValue={editingRow.notes ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setEditingRow(null)} className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium hover:bg-muted transition-colors">
+                Cancel
+              </button>
+              <button type="submit" className="rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors">
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

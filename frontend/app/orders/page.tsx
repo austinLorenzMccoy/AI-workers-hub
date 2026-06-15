@@ -8,9 +8,11 @@ import {
   fetchOrdersByPlatform,
   createOrder,
   updateOrder,
+  deleteOrder,
 } from '@/lib/db'
 import type { Platform, OrderRow, OrderStatus } from '@/types'
-import { Plus, Loader2, X } from 'lucide-react'
+import { useToast } from '@/lib/toast-context'
+import { Plus, Loader2, X, Pencil, Trash2 } from 'lucide-react'
 
 const ORDER_STATUSES: OrderStatus[] = [
   '🟢 Active', '🟡 Pending', '🔵 Processing',
@@ -26,6 +28,8 @@ export default function OrdersPage() {
   const [tableLoading, setTableLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
+  const [editingRow, setEditingRow] = useState<OrderRow | null>(null)
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchPlatforms().then((data) => {
@@ -93,6 +97,37 @@ export default function OrdersPage() {
     }
   }
 
+  const handleDelete = async (orderId: string) => {
+    if (!window.confirm('Delete this order?')) return
+    const { error } = await deleteOrder(orderId)
+    if (!error) {
+      setOrders((prev) => prev.filter((o) => o.id !== orderId))
+      toast('Order deleted', 'success')
+    }
+  }
+
+  const handleSaveRow = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!editingRow) return
+    const fd = new FormData(e.currentTarget)
+    const updates: Record<string, unknown> = {
+      order_id_code: (fd.get('order_id_code') as string) || editingRow.order_id_code,
+      owner_name: (fd.get('owner_name') as string) || editingRow.owner_name,
+      proxy: (fd.get('proxy') as string) || null,
+      status: (fd.get('status') as string) || editingRow.status,
+      order_date: (fd.get('order_date') as string) || null,
+      notes: (fd.get('notes') as string) || null,
+    }
+    const { error } = await updateOrder(editingRow.id, updates as any)
+    if (!error) {
+      toast('Updated successfully', 'success')
+      setEditingRow(null)
+      loadOrders(selectedPlatform)
+    } else {
+      toast('Update failed', 'error')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -102,6 +137,7 @@ export default function OrdersPage() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
@@ -227,6 +263,7 @@ export default function OrdersPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Notes</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -256,6 +293,26 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">
                     {order.notes ?? '—'}
                   </td>
+                  <td className="px-4 py-3">
+                    {permissions?.canEditOrders && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setEditingRow(order)}
+                          className="p-1 rounded hover:bg-ops/10 transition-colors"
+                          title="Edit entry"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-ops" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(order.id)}
+                          className="p-1 rounded hover:bg-red-500/10 transition-colors"
+                          title="Delete entry"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -263,5 +320,60 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+
+    {/* Edit Modal */}
+    {editingRow && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="w-full max-w-lg mx-4 rounded-xl border border-border-subtle bg-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
+            <h2 className="text-lg font-semibold text-foreground">Edit Order</h2>
+            <button onClick={() => setEditingRow(null)} className="rounded p-1 hover:bg-muted">
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+          <form onSubmit={handleSaveRow} className="px-6 py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Order ID Code *</label>
+                <input name="order_id_code" required defaultValue={editingRow.order_id_code} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Owner Name *</label>
+                <input name="owner_name" required defaultValue={editingRow.owner_name} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Proxy</label>
+                <input name="proxy" defaultValue={editingRow.proxy ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Status</label>
+                <select name="status" defaultValue={editingRow.status} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50">
+                  {ORDER_STATUSES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Order Date</label>
+                <input name="order_date" type="date" defaultValue={editingRow.order_date ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Notes</label>
+              <textarea name="notes" rows={2} defaultValue={editingRow.notes ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setEditingRow(null)} className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium hover:bg-muted transition-colors">
+                Cancel
+              </button>
+              <button type="submit" className="rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors">
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
