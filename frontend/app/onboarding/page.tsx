@@ -189,6 +189,7 @@ export default function OnboardingPage() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
