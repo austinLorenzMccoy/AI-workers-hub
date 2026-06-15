@@ -12,6 +12,7 @@ import {
   DollarSign,
   FileBarChart,
   History,
+  ShieldCheck,
   Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -64,6 +65,12 @@ const channels = [
     label: 'Activity',
     icon: History,
     href: '/activity',
+  },
+  {
+    id: 'audit',
+    label: 'Audit',
+    icon: ShieldCheck,
+    href: '/audit',
   },
   {
     id: 'admin',

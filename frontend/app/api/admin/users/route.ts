@@ -44,6 +44,16 @@ export async function PATCH(request: NextRequest) {
     const { error } = await (createAdminClient() as any)
       .from('app_users').update({ is_active }).eq('id', userId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Audit log
+    await createAdminClient().from('audit_log').insert({
+      user_id: adminUser.id,
+      action: is_active ? 'activate_user' : 'deactivate_user',
+      entity_type: 'user',
+      entity_id: userId,
+      details: { is_active },
+    })
+
     return NextResponse.json({ success: true })
   }
 
@@ -66,6 +76,16 @@ export async function PATCH(request: NextRequest) {
   const { error } = await (createAdminClient() as any)
     .from('app_users').update(updates).eq('id', userId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Audit log
+  await createAdminClient().from('audit_log').insert({
+    user_id: adminUser.id,
+    action: 'role_change',
+    entity_type: 'user',
+    entity_id: userId,
+    details: { new_role: role, platform_access: updates.platform_access, can_view_orders: updates.can_view_orders },
+  })
+
   return NextResponse.json({ success: true })
 }
 
@@ -98,6 +118,15 @@ export async function DELETE(request: NextRequest) {
     // User removed from app_users but auth delete failed — log but don't fail
     console.error('Auth user delete failed:', authError.message)
   }
+
+  // Audit log
+  await createAdminClient().from('audit_log').insert({
+    user_id: adminUser.id,
+    action: 'delete',
+    entity_type: 'user',
+    entity_id: userId,
+    details: { deleted: true },
+  })
 
   return NextResponse.json({ success: true })
 }
