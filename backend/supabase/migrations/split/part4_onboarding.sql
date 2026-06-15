@@ -3,6 +3,15 @@
 -- Paste this into Supabase SQL Editor and click "Run"
 -- ═══════════════════════════════════════════════════════════════════
 
+-- ── 0. Ensure helper function exists ────────────────────────────
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 -- ── 1. Create table ─────────────────────────────────────────────
 create table public.onboarding (
   id                  uuid primary key default uuid_generate_v4(),
