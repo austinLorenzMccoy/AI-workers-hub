@@ -152,11 +152,14 @@ export default function OnboardingPage() {
     if (!editingRow) return
     const fd = new FormData(e.currentTarget)
     const updates: Record<string, unknown> = {
+      applicant_name: (fd.get('applicant_name') as string) || editingRow.applicant_name,
       email: (fd.get('email') as string) || null,
       phone: (fd.get('phone') as string) || null,
       country: (fd.get('country') as string) || null,
       referral: (fd.get('referral') as string) || null,
       notes: (fd.get('notes') as string) || null,
+      application_status: (fd.get('application_status') as string) || editingRow.application_status,
+      date_applied: (fd.get('date_applied') as string) || editingRow.date_applied,
     }
     const newPassword = fd.get('password') as string
     if (newPassword) {
@@ -439,15 +442,15 @@ export default function OnboardingPage() {
             <form onSubmit={handleSaveRow} className="px-6 py-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Applicant Name</label>
-                  <p className="text-sm font-medium text-foreground">{editingRow.applicant_name}</p>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Applicant Name *</label>
+                  <input name="applicant_name" required defaultValue={editingRow.applicant_name} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">Email</label>
                   <input name="email" type="email" defaultValue={editingRow.email ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">New Password</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Password</label>
                   <input name="password" type="text" placeholder="Leave blank to keep current" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
                 </div>
                 <div>
@@ -461,6 +464,18 @@ export default function OnboardingPage() {
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">Referral</label>
                   <input name="referral" defaultValue={editingRow.referral ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Status</label>
+                  <select name="application_status" defaultValue={editingRow.application_status} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50">
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Date Applied</label>
+                  <input name="date_applied" type="date" defaultValue={editingRow.date_applied ?? ''} className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
                 </div>
               </div>
               <div>
