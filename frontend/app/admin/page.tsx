@@ -4,8 +4,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
 import { fetchPlatforms } from '@/lib/db'
+import { PlatformManager } from '@/components/admin/platform-manager'
 import type { UserRole, AppUser, Platform } from '@/types'
-import { Settings, Shield, Users, Loader2, Check, X, UserX, UserCheck, Trash2 } from 'lucide-react'
+import { Settings, Shield, Users, Loader2, Check, X, UserX, UserCheck, Trash2, Layers } from 'lucide-react'
+
+type AdminTab = 'users' | 'platforms'
 
 const ROLES: UserRole[] = ['admin', 'manager', 'supervisor', 'worker']
 
@@ -18,6 +21,7 @@ const rolePermissions: Record<UserRole, string[]> = {
     'View Payroll',
     'Access Admin Panel',
     'Manage Roles',
+    'Add / Edit Platforms & task columns',
     'Export Data',
   ],
   manager: [
@@ -45,6 +49,7 @@ interface EditState {
 
 export default function AdminPage() {
   const { hasRole, appUser, isLoading: authLoading } = useAuth()
+  const [tab, setTab] = useState<AdminTab>('users')
   const [users, setUsers] = useState<AppUser[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
@@ -61,10 +66,16 @@ export default function AdminPage() {
     }
   }, [])
 
+  const loadPlatforms = useCallback(async () => {
+    // Active list for user platform-access chips; PlatformManager loads full list via API
+    const data = await fetchPlatforms({ includeInactive: true })
+    setPlatforms(data)
+  }, [])
+
   useEffect(() => {
-    Promise.all([loadUsers(), fetchPlatforms().then(setPlatforms)])
+    Promise.all([loadUsers(), loadPlatforms()])
       .finally(() => setLoading(false))
-  }, [loadUsers])
+  }, [loadUsers, loadPlatforms])
 
   if (authLoading) {
     return (
@@ -214,11 +225,46 @@ export default function AdminPage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Control Tower</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage system roles, permissions, and user accounts
+          Manage roles, users, and AI training platforms — add new platforms without a code deploy
         </p>
       </div>
 
-      {message && (
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-border-subtle pb-3">
+        <button
+          onClick={() => setTab('users')}
+          className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+            tab === 'users'
+              ? 'bg-ops text-white'
+              : 'border border-border-subtle text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          <Users className="h-3.5 w-3.5" />
+          Users & Roles
+        </button>
+        <button
+          onClick={() => setTab('platforms')}
+          className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+            tab === 'platforms'
+              ? 'bg-ops text-white'
+              : 'border border-border-subtle text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          <Layers className="h-3.5 w-3.5" />
+          Platforms
+          <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+            tab === 'platforms' ? 'bg-white/20' : 'bg-muted'
+          }`}>
+            {platforms.length}
+          </span>
+        </button>
+      </div>
+
+      {tab === 'platforms' && (
+        <PlatformManager onPlatformsChanged={loadPlatforms} />
+      )}
+
+      {tab === 'users' && message && (
         <div className={`rounded-lg border p-3 text-sm ${
           message.type === 'success'
             ? 'border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400'
@@ -228,6 +274,7 @@ export default function AdminPage() {
         </div>
       )}
 
+      {tab === 'users' && (
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Role overview */}
         <div className="space-y-4">
@@ -441,7 +488,9 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      )}
 
+      {tab === 'users' && (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Settings className="h-5 w-5 text-ops" />
@@ -456,6 +505,9 @@ export default function AdminPage() {
           <div className="rounded-lg border border-border-subtle bg-card p-4">
             <p className="text-xs text-muted-foreground">Platforms</p>
             <p className="text-2xl font-bold text-foreground">{platforms.length}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Manage in the Platforms tab
+            </p>
           </div>
           <div className="rounded-lg border border-border-subtle bg-card p-4">
             <p className="text-xs text-muted-foreground">API Status</p>
@@ -463,6 +515,7 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

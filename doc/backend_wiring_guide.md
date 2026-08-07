@@ -95,6 +95,18 @@ ORDER BY routine_name;
 Expected tables:
 - `app_users`, `orders`, `payroll`, `platform_task_columns`, `platforms`, `task_status_history`, `worker_tracker`, `workers_registry`
 
+### Platform Admin (add / edit platforms in the UI)
+
+After the base migration, apply the platform-admin policies so Control Tower → **Platforms** can create and edit platforms without SQL:
+
+1. Open `backend/supabase/migrations/20260807000000_platform_admin.sql` (or `split/part8_platform_admin.sql`)
+2. Run it in the Supabase SQL Editor
+3. Admins can then use **Control Tower → Platforms** to:
+   - Add new AI training platforms (name, slug, icon, color)
+   - Clone task columns from an existing platform
+   - Edit / deactivate platforms
+   - Add, reorder, hide, or delete per-platform tracker columns
+
 ---
 
 ## Step 3 — Enable Google OAuth

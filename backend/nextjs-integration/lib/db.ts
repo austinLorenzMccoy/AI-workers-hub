@@ -12,10 +12,20 @@ import type {
 
 // ── Platforms ───────────────────────────────────────────────────
 
-export async function fetchPlatforms(): Promise<Platform[]> {
+/**
+ * Load platforms for operational screens.
+ * By default only active platforms are returned so deactivated platforms
+ * disappear from Tracker / Registry / Orders without a code change.
+ */
+export async function fetchPlatforms(options?: {
+  includeInactive?: boolean
+}): Promise<Platform[]> {
   const supabase = createClient()
-  const { data, error } = await supabase
-    .from('platforms').select('*').eq('is_active', true).order('id')
+  let query = supabase.from('platforms').select('*').order('id')
+  if (!options?.includeInactive) {
+    query = query.eq('is_active', true)
+  }
+  const { data, error } = await query
   if (error) { console.error('fetchPlatforms:', error.message); return [] }
   return (data ?? []) as Platform[]
 }

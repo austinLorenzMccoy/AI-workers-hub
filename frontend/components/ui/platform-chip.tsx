@@ -1,35 +1,52 @@
 import { cn } from '@/lib/utils'
+import type { Platform } from '@/types'
 
 export interface PlatformChipProps {
-  platform: 'platform_a' | 'platform_b' | 'platform_c'
+  /** Full platform row from DB (preferred — fully data-driven). */
+  platform?: Pick<Platform, 'slug' | 'label' | 'icon' | 'color_hex'>
+  /** Fallback when only a slug is available. */
+  slug?: string
+  label?: string
+  icon?: string
+  colorHex?: string
   variant?: 'default' | 'compact'
+  className?: string
 }
 
-const platformConfig: Record<
-  string,
-  { label: string; className: string }
-> = {
-  platform_a: {
-    label: 'Platform A',
-    className: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20',
-  },
-  platform_b: {
-    label: 'Platform B',
-    className: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/20',
-  },
-  platform_c: {
-    label: 'Platform C',
-    className: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/20',
-  },
-}
-
-export function PlatformChip({ platform, variant = 'default' }: PlatformChipProps) {
-  const config = platformConfig[platform]
+/**
+ * Data-driven platform badge. Prefer passing a Platform object from
+ * fetchPlatforms() so new platforms render correctly without code changes.
+ */
+export function PlatformChip({
+  platform,
+  slug,
+  label,
+  icon,
+  colorHex,
+  variant = 'default',
+  className,
+}: PlatformChipProps) {
+  const resolvedSlug = platform?.slug ?? slug ?? 'unknown'
+  const resolvedLabel = platform?.label ?? label ?? resolvedSlug
+  const resolvedIcon = platform?.icon ?? icon ?? '🔷'
+  const resolvedColor = platform?.color_hex ?? colorHex ?? '#6366F1'
 
   if (variant === 'compact') {
     return (
-      <span className={cn('inline-block rounded px-1.5 py-0.5 text-xs font-medium', config.className)}>
-        {config.label.split(' ')[1]}
+      <span
+        className={cn(
+          'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium border',
+          className
+        )}
+        style={{
+          backgroundColor: `${resolvedColor}18`,
+          color: resolvedColor,
+          borderColor: `${resolvedColor}33`,
+        }}
+        title={resolvedLabel}
+      >
+        <span aria-hidden>{resolvedIcon}</span>
+        <span>{resolvedLabel.split(' ').pop()}</span>
       </span>
     )
   }
@@ -37,11 +54,17 @@ export function PlatformChip({ platform, variant = 'default' }: PlatformChipProp
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
-        config.className
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border',
+        className
       )}
+      style={{
+        backgroundColor: `${resolvedColor}18`,
+        color: resolvedColor,
+        borderColor: `${resolvedColor}33`,
+      }}
     >
-      {config.label}
+      <span aria-hidden>{resolvedIcon}</span>
+      {resolvedLabel}
     </span>
   )
 }
