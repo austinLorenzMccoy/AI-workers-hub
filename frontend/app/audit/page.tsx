@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
 import { createClient } from '@/lib/supabase/client'
 import { Shield, Loader2, Filter } from 'lucide-react'
+import { isDemoMode } from '@/lib/demo'
+import { DEMO_AUDIT } from '@/lib/demo-data'
 
 interface AuditEntry {
   id: string
@@ -57,14 +59,19 @@ export default function AuditPage() {
 
     if (error) {
       console.error('Audit log error:', error.message)
-      setEntries([])
-    } else {
+    }
+    const mapped = (data ?? []).map((d: any) => ({
+      ...d,
+      user_email: d.app_users?.email ?? 'System',
+    }))
+    if (mapped.length > 0) {
+      setEntries(mapped)
+    } else if (isDemoMode()) {
       setEntries(
-        (data ?? []).map((d: any) => ({
-          ...d,
-          user_email: d.app_users?.email ?? 'System',
-        }))
+        DEMO_AUDIT.filter((e) => !filterAction || e.action === filterAction),
       )
+    } else {
+      setEntries([])
     }
     setLoading(false)
   }
@@ -146,7 +153,7 @@ export default function AuditPage() {
                     <td className="px-4 py-2 text-xs text-foreground">{entry.user_email}</td>
                     <td className="px-4 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${colorClass}`}>
-                        {entry.action.replace(/_/g, ' ')}
+                        {(entry.action ?? 'event').replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td className="px-4 py-2 text-xs text-foreground">

@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth-context'
 import { AccessDenied } from '@/components/ui/access-denied'
 import { createClient } from '@/lib/supabase/client'
 import { History, Loader2, Filter } from 'lucide-react'
+import { isDemoMode } from '@/lib/demo'
+import { DEMO_ACTIVITY, DEMO_TRACKER } from '@/lib/demo-data'
 
 interface ActivityEntry {
   id: string
@@ -45,15 +47,24 @@ export default function ActivityPage() {
 
     if (error) {
       console.error('Activity log error:', error.message)
-      setEntries([])
-    } else {
+    }
+    const mapped = (data ?? []).map((d: any) => ({
+      ...d,
+      worker_name: d.worker_tracker?.worker_name ?? 'Unknown',
+      changer_email: d.app_users?.email ?? 'System',
+    }))
+    if (mapped.length > 0) {
+      setEntries(mapped)
+    } else if (isDemoMode()) {
       setEntries(
-        (data ?? []).map((d: any) => ({
+        DEMO_ACTIVITY.map((d) => ({
           ...d,
-          worker_name: d.worker_tracker?.worker_name ?? 'Unknown',
-          changer_email: d.app_users?.email ?? 'System',
-        }))
+          worker_name: DEMO_TRACKER.find((t) => t.id === d.tracker_row_id)?.worker_name ?? 'Unknown',
+          changer_email: 'admin@workershub.demo',
+        })),
       )
+    } else {
+      setEntries([])
     }
     setLoading(false)
   }

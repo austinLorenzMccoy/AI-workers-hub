@@ -38,13 +38,13 @@ describe('GET /auth/callback', () => {
   it('redirects to login with error when no code provided', async () => {
     const req = new NextRequest('http://localhost/auth/callback')
     const res = await GET(req)
-    expect(res.headers.get('Location')).toContain('/?error=auth_failed')
+    expect(res.headers.get('Location')).toContain('/login?error=auth_failed')
   })
 
   it('redirects to login with error when exchange fails', async () => {
     exchangeResult = { error: { message: 'invalid code' } }
     const req = new NextRequest('http://localhost/auth/callback?code=bad')
     const res = await GET(req)
-    expect(res.headers.get('Location')).toContain('/?error=auth_failed')
+    expect(res.headers.get('Location')).toContain('/login?error=auth_failed')
   })
 })

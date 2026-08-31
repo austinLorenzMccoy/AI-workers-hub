@@ -35,6 +35,10 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => mockSupabase,
 }))
 
+vi.mock('@/lib/demo', () => ({
+  isDemoMode: () => false,
+}))
+
 // ── Import under test ───────────────────────────────────────────
 
 import {
@@ -57,6 +61,14 @@ beforeEach(() => {
 })
 
 // ── Platforms ───────────────────────────────────────────────────
+
+describe('demo fallbacks', () => {
+  it('returns live data when isDemoMode is false', async () => {
+    mockResponse = { data: [], error: null }
+    const result = await fetchPlatforms()
+    expect(result).toEqual([])
+  })
+})
 
 describe('fetchPlatforms', () => {
   it('returns platforms on success', async () => {

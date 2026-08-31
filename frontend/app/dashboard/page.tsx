@@ -15,7 +15,7 @@ import type { PlatformStatsRow } from '@/types'
 import { Users, ShoppingCart, AlertTriangle, DollarSign, Loader2 } from 'lucide-react'
 
 export default function DashboardPage() {
-  const { hasAccess, isLoading: authLoading } = useAuth()
+  const { hasAccess, isDemo, isLoading: authLoading } = useAuth()
   const [stats, setStats] = useState<PlatformStatsRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -64,6 +64,22 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Real-time overview of worker operations across all platforms
         </p>
+        {isDemo && (
+          <p className="mt-3 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-200">
+            Preview mode — sample operations data. Sign in with Google for live workers.
+            {process.env.NEXT_PUBLIC_TRAINER_URL ? (
+              <>
+                {' '}
+                <a
+                  href={process.env.NEXT_PUBLIC_TRAINER_URL}
+                  className="font-medium underline underline-offset-2"
+                >
+                  Open the annotation trainer
+                </a>
+              </>
+            ) : null}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

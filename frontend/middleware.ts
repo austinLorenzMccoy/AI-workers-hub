@@ -35,6 +35,11 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
+  const demoPreview = request.cookies.get('wh_demo')?.value === '1'
+
+  if (demoPreview) {
+    return supabaseResponse
+  }
 
   if (!user && PROTECTED.some(p => pathname.startsWith(p))) {
     const url = new URL('/login', request.url)
@@ -43,8 +48,16 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && ADMIN_ONLY.some(p => pathname.startsWith(p))) {
-    const { data: appUser } = await supabase
+    const { data: appUser, error } = await supabase
       .from('app_users').select('role').eq('id', user.id).single()
+    // Query failures (expired JWT, session tearing down on logout) are not
+    // the same as "this person is not an admin". Send them to login instead
+    // of flashing the access-denied warning.
+    if (error && error.code !== 'PGRST116') {
+      const url = new URL('/login', request.url)
+      url.searchParams.set('next', pathname)
+      return NextResponse.redirect(url)
+    }
     if (!appUser || appUser.role !== 'admin') {
       return NextResponse.redirect(new URL('/dashboard?error=access_denied', request.url))
     }

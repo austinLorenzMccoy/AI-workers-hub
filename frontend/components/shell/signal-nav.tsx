@@ -14,6 +14,7 @@ import {
   History,
   ShieldCheck,
   Settings,
+  GraduationCap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -108,6 +109,15 @@ export function SignalNav() {
           </Link>
         )
       })}
+      {process.env.NEXT_PUBLIC_TRAINER_URL ? (
+        <a
+          href={process.env.NEXT_PUBLIC_TRAINER_URL}
+          className="mt-4 flex items-center gap-3 rounded-lg border border-violet-500/20 px-3 py-2 text-sm font-medium text-violet-300 hover:bg-violet-500/10"
+        >
+          <GraduationCap className="h-5 w-5" />
+          <span>Trainer</span>
+        </a>
+      ) : null}
     </nav>
   )
 }

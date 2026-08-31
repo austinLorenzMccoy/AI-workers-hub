@@ -29,6 +29,15 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => mockSupabase,
 }))
 
+vi.mock('@/lib/demo', () => ({
+  isDemoMode: () => false,
+  isConfiguredDemoMode: () => false,
+  hasDemoCookie: () => false,
+  clearDemoCookie: vi.fn(),
+}))
+
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
 process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000'
 
 import { AuthProvider, useAuth } from '@/lib/auth-context'
@@ -127,6 +136,42 @@ describe('AuthProvider', () => {
     expect(result.current.appUser).toBeNull()
   })
 
+  it('handles onAuthStateChange with a session object but no user', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    await act(async () => {
+      if (authStateCallback) {
+        await authStateCallback('SIGNED_IN', {})
+      }
+    })
+    expect(result.current.user).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('does not clear appUser on a null session that is not SIGNED_OUT', async () => {
+    const mockUser = { id: 'u1' }
+    sessionResult = { data: { session: { user: mockUser } } }
+    appUserResult = {
+      data: {
+        id: 'u1', email: 'test@test.com', display_name: 'Test',
+        role: 'admin', platform_access: null, worker_id: null,
+        can_view_orders: true, is_active: true,
+        last_sign_in: null, created_at: '2024-01-01', updated_at: '2024-01-01',
+      },
+    }
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.appUser).not.toBeNull())
+
+    await act(async () => {
+      if (authStateCallback) {
+        await authStateCallback('TOKEN_REFRESHED', null)
+      }
+    })
+    expect(result.current.appUser?.role).toBe('admin')
+    expect(result.current.user).toEqual(mockUser)
+  })
+
   it('signInWithGoogle calls supabase OAuth', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper })
     await waitFor(() => expect(result.current.isLoading).toBe(false))
@@ -158,6 +203,30 @@ describe('AuthProvider', () => {
     })
     expect(mockSupabase.auth.signOut).toHaveBeenCalled()
     expect(result.current.appUser).toBeNull()
+    expect(result.current.user).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('signOut still clears state if supabase signOut throws', async () => {
+    sessionResult = { data: { session: { user: { id: 'u1' } } } }
+    appUserResult = {
+      data: {
+        id: 'u1', email: 'test@test.com', display_name: 'Test',
+        role: 'admin', platform_access: null, worker_id: null,
+        can_view_orders: true, is_active: true,
+        last_sign_in: null, created_at: '2024-01-01', updated_at: '2024-01-01',
+      },
+    }
+    mockSupabase.auth.signOut.mockRejectedValueOnce(new Error('network'))
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.appUser).not.toBeNull())
+
+    await act(async () => {
+      await expect(result.current.signOut()).rejects.toThrow('network')
+    })
+    expect(result.current.appUser).toBeNull()
+    expect(result.current.user).toBeNull()
+    expect(result.current.isLoading).toBe(false)
   })
 
   it('refreshAppUser reloads app user', async () => {

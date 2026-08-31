@@ -6,7 +6,7 @@ import React, {
 } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-import { isDemoMode } from '@/lib/demo'
+import { clearDemoCookie, hasDemoCookie, isConfiguredDemoMode } from '@/lib/demo'
 import type { AppUser, UserPermissions, UserRole } from '@/types'
 import { getPermissions } from '@/types'
 
@@ -50,15 +50,17 @@ const DEMO_APP_USER: AppUser = {
 // ── Provider ────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const demo = isDemoMode()
+  const envDemo = isConfiguredDemoMode()
+  const [cookieDemo, setCookieDemo] = useState(false)
+  const demo = envDemo || cookieDemo
 
   const [user,      setUser]      = useState<User | null>(null)
   const [session,   setSession]   = useState<Session | null>(null)
-  const [appUser,   setAppUser]   = useState<AppUser | null>(demo ? DEMO_APP_USER : null)
-  const [isLoading, setIsLoading] = useState(!demo) // demo starts loaded
+  const [appUser,   setAppUser]   = useState<AppUser | null>(envDemo ? DEMO_APP_USER : null)
+  const [isLoading, setIsLoading] = useState(!envDemo) // env demo starts loaded
 
-  // ── Real Supabase auth (skipped in demo) ────────────────────
-  const supabase = demo ? null : createClient()
+  // ── Real Supabase auth (skipped in env demo) ────────────────
+  const supabase = envDemo ? null : createClient()
 
   const loadAppUser = useCallback(async (userId: string) => {
     if (!supabase) return
@@ -68,7 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase])
 
   useEffect(() => {
-    if (demo || !supabase) return
+    if (envDemo || !supabase) return
+    if (hasDemoCookie()) {
+      setCookieDemo(true)
+      setAppUser(DEMO_APP_USER)
+      setIsLoading(false)
+      return
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
@@ -80,11 +88,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        // Only SIGNED_OUT should drop the profile. Null-session blips during
+        // token refresh otherwise make hasAccess() false and flash Access Denied.
+        if (event === 'SIGNED_OUT' || !session) {
+          if (event === 'SIGNED_OUT') {
+            setSession(null)
+            setUser(null)
+            setAppUser(null)
+            setIsLoading(false)
+          }
+          return
+        }
         setSession(session)
-        setUser(session?.user ?? null)
-        if (session?.user) await loadAppUser(session.user.id)
-        else setAppUser(null)
+        setUser(session.user ?? null)
+        if (session.user) await loadAppUser(session.user.id)
         setIsLoading(false)
       }
     )
@@ -93,17 +111,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) return
+    const origin =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000')
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback`,
+        redirectTo: `${origin}/auth/callback`,
       },
     })
   }, [supabase])
 
   const signOut = useCallback(async () => {
-    if (supabase) await supabase.auth.signOut()
-    setAppUser(null)
+    setIsLoading(true)
+    try {
+      clearDemoCookie()
+      if (supabase) await supabase.auth.signOut()
+    } finally {
+      setUser(null)
+      setSession(null)
+      setAppUser(null)
+      setIsLoading(false)
+    }
   }, [supabase])
 
   const refreshAppUser = useCallback(async () => {

@@ -53,8 +53,8 @@ export function CommandStrip() {
 
   const handleSignOut = async () => {
     setLoggingOut(true)
-    await signOut()
     router.push('/')
+    await signOut()
   }
 
   const cycleTheme = () => {

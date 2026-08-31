@@ -68,6 +68,14 @@ export default function LandingPage() {
               >
                 Explore Features
               </a>
+              {process.env.NEXT_PUBLIC_TRAINER_URL ? (
+                <a
+                  href={process.env.NEXT_PUBLIC_TRAINER_URL}
+                  className="flex items-center gap-2 rounded-lg border border-violet-400/30 bg-violet-500/10 px-7 py-3.5 text-sm font-medium text-violet-200 hover:bg-violet-500/20 transition-colors"
+                >
+                  Open trainer
+                </a>
+              ) : null}
             </div>
 
             {/* Stats */}

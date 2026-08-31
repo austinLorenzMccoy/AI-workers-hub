@@ -50,37 +50,37 @@ describe('middleware', () => {
     const req = new NextRequest('http://localhost/dashboard')
     const res = await middleware(req)
     expect(res.status).toBe(307)
-    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/?next=/dashboard')
+    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/login?next=/dashboard')
   })
 
   it('redirects unauthenticated users from /tracker', async () => {
     const req = new NextRequest('http://localhost/tracker')
     const res = await middleware(req)
-    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/?next=/tracker')
+    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/login?next=/tracker')
   })
 
   it('redirects unauthenticated users from /registry', async () => {
     const req = new NextRequest('http://localhost/registry')
     const res = await middleware(req)
-    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/?next=/registry')
+    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/login?next=/registry')
   })
 
   it('redirects unauthenticated users from /orders', async () => {
     const req = new NextRequest('http://localhost/orders')
     const res = await middleware(req)
-    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/?next=/orders')
+    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/login?next=/orders')
   })
 
   it('redirects unauthenticated users from /payroll', async () => {
     const req = new NextRequest('http://localhost/payroll')
     const res = await middleware(req)
-    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/?next=/payroll')
+    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/login?next=/payroll')
   })
 
   it('redirects unauthenticated users from /admin', async () => {
     const req = new NextRequest('http://localhost/admin')
     const res = await middleware(req)
-    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/?next=/admin')
+    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/login?next=/admin')
   })
 
   it('allows unauthenticated users on non-protected routes', async () => {
@@ -89,12 +89,36 @@ describe('middleware', () => {
     expect(res.status).toBe(200)
   })
 
-  it('redirects authenticated user from root to /dashboard', async () => {
+  it('allows unauthenticated dashboard access with the demo cookie', async () => {
+    const req = new NextRequest('http://localhost/dashboard', {
+      headers: { cookie: 'wh_demo=1' },
+    })
+    const res = await middleware(req)
+    expect(res.status).toBe(200)
+  })
+
+  it('allows authenticated users on the landing page', async () => {
     authUserResult = { data: { user: { id: 'u1' } } }
     const req = new NextRequest('http://localhost/')
     const res = await middleware(req)
+    expect(res.status).toBe(200)
+  })
+
+  it('redirects authenticated user from /login to /dashboard', async () => {
+    authUserResult = { data: { user: { id: 'u1' } } }
+    const req = new NextRequest('http://localhost/login')
+    const res = await middleware(req)
     expect(res.status).toBe(307)
     expect(res.headers.get('Location')).toContain('/dashboard')
+  })
+
+  it('blocks non-admin from /activity with access_denied', async () => {
+    authUserResult = { data: { user: { id: 'u1' } } }
+    appUserQuery = makeQueryChain({ role: 'manager' })
+    const req = new NextRequest('http://localhost/activity')
+    const res = await middleware(req)
+    expect(res.status).toBe(307)
+    expect(res.headers.get('Location')).toContain('/dashboard?error=access_denied')
   })
 
   it('allows authenticated non-admin to access dashboard', async () => {
@@ -120,6 +144,25 @@ describe('middleware', () => {
     const res = await middleware(req)
     expect(res.status).toBe(307)
     expect(res.headers.get('Location')).toContain('/dashboard?error=access_denied')
+  })
+
+  it('blocks unprovisioned user (PGRST116) from /admin with access_denied', async () => {
+    authUserResult = { data: { user: { id: 'u1' } } }
+    appUserQuery = makeQueryChain(null, { code: 'PGRST116', message: 'No rows' })
+    const req = new NextRequest('http://localhost/admin')
+    const res = await middleware(req)
+    expect(res.status).toBe(307)
+    expect(res.headers.get('Location')).toContain('/dashboard?error=access_denied')
+  })
+
+  it('does not flash access_denied when app_users query errors (logout race)', async () => {
+    authUserResult = { data: { user: { id: 'u1' } } }
+    appUserQuery = makeQueryChain(null, { code: '401', message: 'JWT expired' })
+    const req = new NextRequest('http://localhost/admin')
+    const res = await middleware(req)
+    expect(res.status).toBe(307)
+    expect(res.headers.get('Location')).not.toContain('access_denied')
+    expect(decodeURIComponent(res.headers.get('Location')!)).toContain('/login?next=/admin')
   })
 
   it('allows admin to access /admin', async () => {

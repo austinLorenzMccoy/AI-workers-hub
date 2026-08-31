@@ -29,6 +29,7 @@ export default function OrdersPage() {
   const [showForm, setShowForm] = useState(false)
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null)
   const [editingRow, setEditingRow] = useState<OrderRow | null>(null)
+  const [selectedCreatePlatforms, setSelectedCreatePlatforms] = useState<number[]>([])
   const { toast } = useToast()
 
   useEffect(() => {
@@ -63,6 +64,12 @@ export default function OrdersPage() {
 
   const activePlatform = platforms.find((p) => p.slug === selectedPlatform)
 
+  useEffect(() => {
+    if (activePlatform) {
+      setSelectedCreatePlatforms([activePlatform.id])
+    }
+  }, [activePlatform])
+
   const filteredOrders = selectedStatus
     ? orders.filter((o) => o.status === selectedStatus)
     : orders
@@ -74,6 +81,7 @@ export default function OrdersPage() {
 
     const { error } = await createOrder({
       platform_id: activePlatform.id,
+      platform_ids: selectedCreatePlatforms.length > 0 ? selectedCreatePlatforms : [activePlatform.id],
       order_id_code: fd.get('order_id_code') as string,
       proxy: (fd.get('proxy') as string) || null,
       owner_name: fd.get('owner_name') as string,
@@ -173,6 +181,25 @@ export default function OrdersPage() {
               <label className="block text-sm font-medium text-foreground mb-1">Owner Name *</label>
               <input name="owner_name" required className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
             </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="block text-sm font-medium text-foreground mb-1">Platforms</label>
+              <div className="flex flex-wrap gap-2 rounded-lg border border-border-subtle bg-background p-3">
+                {platforms.map((platform) => (
+                  <label key={platform.id} className="flex items-center gap-2 rounded-full border border-border-subtle px-2 py-1 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={selectedCreatePlatforms.includes(platform.id)}
+                      onChange={(e) => {
+                        setSelectedCreatePlatforms((prev) => e.target.checked
+                          ? Array.from(new Set([...prev, platform.id]))
+                          : prev.filter((id) => id !== platform.id))
+                      }}
+                    />
+                    {platform.icon} {platform.label}
+                  </label>
+                ))}
+              </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Proxy</label>
               <input name="proxy" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
@@ -258,6 +285,7 @@ export default function OrdersPage() {
             <thead className="border-b border-border-subtle bg-card">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Order ID</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Platforms</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Owner</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Proxy</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
@@ -270,6 +298,19 @@ export default function OrdersPage() {
               {filteredOrders.map((order) => (
                 <tr key={order.id} className="bg-card hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-foreground">{order.order_id_code}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {(order.platform_ids && order.platform_ids.length > 0 ? order.platform_ids : [order.platform_id]).map((platformId) => {
+                        const platform = platforms.find((p) => p.id === platformId)
+                        if (!platform) return null
+                        return (
+                          <span key={`${order.id}-${platform.id}`} className="rounded-full border border-border-subtle px-2 py-0.5 text-[10px] text-muted-foreground">
+                            {platform.icon} {platform.label}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 font-medium text-foreground">{order.owner_name}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{order.proxy ?? '—'}</td>
                   <td className="px-4 py-3">

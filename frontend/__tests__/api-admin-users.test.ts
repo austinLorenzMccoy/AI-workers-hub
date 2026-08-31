@@ -38,6 +38,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: vi.fn(() => mockAdmin),
 }))
 
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(async () => ({ get: () => undefined })),
+}))
+
 import { GET, PATCH } from '@/app/api/admin/users/route'
 import { NextRequest } from 'next/server'
 

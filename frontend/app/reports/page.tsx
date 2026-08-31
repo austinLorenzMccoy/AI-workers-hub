@@ -8,6 +8,8 @@ import { fetchPlatforms } from '@/lib/db'
 import type { Platform } from '@/types'
 import { Download, Loader2, FileText } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { isDemoMode } from '@/lib/demo'
+import { DEMO_PAYROLL, DEMO_PLATFORMS } from '@/lib/demo-data'
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -47,14 +49,21 @@ export default function ReportsPage() {
 
     if (error) {
       console.error('Report error:', error.message)
-      setReports([])
-      setLoading(false)
-      return
+    }
+
+    let rows = (data ?? []) as any[]
+    if (rows.length === 0 && isDemoMode()) {
+      rows = DEMO_PAYROLL
+        .filter((r) => r.month === month && r.year === year)
+        .map((r) => {
+          const p = DEMO_PLATFORMS.find((pl) => pl.id === r.platform_id)
+          return { ...r, platforms: { label: p?.label, icon: p?.icon } }
+        })
     }
 
     // Group by platform
     const grouped: Record<number, ReportData> = {}
-    for (const row of (data ?? []) as any[]) {
+    for (const row of rows) {
       const pid = row.platform_id
       if (!grouped[pid]) {
         grouped[pid] = {

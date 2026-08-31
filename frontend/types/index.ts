@@ -85,9 +85,17 @@ export interface WorkerRegistryRow {
   updated_at: string
 }
 
+export interface OrderPlatformLink {
+  id: string
+  order_id: string
+  platform_id: number
+  created_at: string
+}
+
 export interface OrderRow {
   id: string
   platform_id: number
+  platform_ids?: number[]
   order_id_code: string
   proxy: string | null
   owner_name: string

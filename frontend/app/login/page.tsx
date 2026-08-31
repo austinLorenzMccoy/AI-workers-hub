@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { ArrowLeft, Zap } from 'lucide-react'
+import { DEMO_COOKIE } from '@/lib/demo'
 
 function LoginContent() {
   const router = useRouter()
@@ -131,8 +132,22 @@ function LoginContent() {
             {signingIn ? 'Redirecting to Google…' : 'Continue with Google'}
           </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              document.cookie = `${DEMO_COOKIE}=1; path=/; max-age=86400; SameSite=Lax`
+              const next = searchParams.get('next') ?? '/dashboard'
+              const dest = next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+              window.location.assign(dest)
+            }}
+            className="mt-3 w-full rounded-lg border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm font-medium text-violet-200 hover:bg-violet-500/20 transition-colors"
+          >
+            Preview the dashboard
+          </button>
+
           <p className="mt-6 text-center text-xs text-slate-500">
-            Access is granted by your administrator after your first sign-in.
+            Google is for live operations. Preview opens the dashboard with sample data
+            so you can walk a client through it without an account.
           </p>
         </div>
       </div>

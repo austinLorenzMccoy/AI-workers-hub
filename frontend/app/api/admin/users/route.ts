@@ -1,7 +1,14 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { DEMO_USERS } from '@/lib/demo-data'
 
 export const dynamic = 'force-dynamic'
+
+async function isDemoPreview() {
+  const jar = await cookies()
+  return jar.get('wh_demo')?.value === '1'
+}
 
 async function assertAdmin(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
@@ -14,6 +21,8 @@ async function assertAdmin(
 
 // GET /api/admin/users — Returns list of all users (admin only)
 export async function GET() {
+  if (await isDemoPreview()) return NextResponse.json(DEMO_USERS)
+
   const supabase = await createServerSupabaseClient()
   const admin = await assertAdmin(supabase)
   if (!admin) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
