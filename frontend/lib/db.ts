@@ -226,7 +226,7 @@ export async function fetchOrdersByPlatform(
   const supabase = createClient()
   let query = (supabase as any)
     .from('orders')
-    .select('*, platforms!inner(slug), order_platforms(platform_id)')
+    .select('*, platforms!inner(slug)')
     .eq('platforms.slug', platformSlug)
     .order('order_date', { ascending: false })
   if (statusFilter) query = query.eq('status', statusFilter)
@@ -241,18 +241,7 @@ export async function fetchOrdersByPlatform(
   const platform = platformsBySlug(platformSlug)
   const demo = DEMO_ORDERS.filter((r) => r.platform_id === platform?.id)
     .filter((r) => !statusFilter || r.status === statusFilter)
-
-  const liveRows = ((data ?? []) as any[]).map((row) => {
-    const platformIds = Array.from(new Set([
-      row.platform_id,
-      ...(row.order_platforms ?? []).map((link: any) => link.platform_id),
-    ].filter(Boolean)))
-
-    if (!platformIds.length) return row as OrderRow
-    return { ...(row as OrderRow), platform_ids: platformIds }
-  })
-
-  return liveOrDemo(liveRows as OrderRow[], demo)
+  return liveOrDemo((data ?? []) as OrderRow[], demo)
 }
 
 export async function createOrder(
