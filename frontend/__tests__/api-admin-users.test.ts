@@ -42,6 +42,11 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: () => undefined })),
 }))
 
+vi.mock('@/lib/crypto', () => ({
+  encryptField: vi.fn((v: string) => `enc:${v}`),
+  decryptField: vi.fn((v: string) => v.replace(/^enc:/, '')),
+}))
+
 import { GET, PATCH } from '@/app/api/admin/users/route'
 import { NextRequest } from 'next/server'
 
@@ -58,7 +63,15 @@ describe('GET /api/admin/users', () => {
     const res = await GET()
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual([{ id: 'u1' }])
+    // paystack_recipient_code is masked, never echoed as ciphertext
+    expect(body).toEqual([{ id: 'u1', paystack_recipient_code: null }])
+  })
+
+  it('masks paystack_recipient_code instead of returning the ciphertext', async () => {
+    adminListQuery = makeQueryChain([{ id: 'u1', paystack_recipient_code: 'iv.tag.ciphertext' }])
+    const res = await GET()
+    const body = await res.json()
+    expect(body[0].paystack_recipient_code).toBe('••••••••')
   })
 
   it('returns 403 when user is not authenticated', async () => {
@@ -172,6 +185,30 @@ describe('PATCH /api/admin/users', () => {
     })
     const res = await PATCH(req)
     expect(res.status).toBe(200)
+  })
+
+  it('encrypts paystack_recipient_code when provided standalone (no role change)', async () => {
+    mockAdmin.from.mockReturnValue(adminUpdateQuery)
+    const req = new NextRequest('http://localhost/api/admin/users', {
+      method: 'PATCH',
+      body: JSON.stringify({ userId: 'u2', paystack_recipient_code: 'RCP_test' }),
+    })
+    const res = await PATCH(req)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.success).toBe(true)
+    expect(adminUpdateQuery.update).toHaveBeenCalledWith({ paystack_recipient_code: 'enc:RCP_test' })
+  })
+
+  it('clears paystack_recipient_code when set to empty string', async () => {
+    mockAdmin.from.mockReturnValue(adminUpdateQuery)
+    const req = new NextRequest('http://localhost/api/admin/users', {
+      method: 'PATCH',
+      body: JSON.stringify({ userId: 'u2', paystack_recipient_code: '' }),
+    })
+    const res = await PATCH(req)
+    expect(res.status).toBe(200)
+    expect(adminUpdateQuery.update).toHaveBeenCalledWith({ paystack_recipient_code: null })
   })
 
   it('uses provided platform_access and can_view_orders for non-admin', async () => {

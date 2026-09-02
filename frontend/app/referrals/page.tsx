@@ -18,7 +18,7 @@ const REFERRAL_STATUSES: ReferralStatus[] = ['pending', 'active', 'paid']
  *  ReferrerPortal. The "all referred workers must be paid" gate is
  *  enforced in the database (trg_payout_gating), not just in the UI. */
 export default function ReferralsAdminPage() {
-  const { hasAccess } = useAuth()
+  const { hasAccess, appUser } = useAuth()
   const { toast } = useToast()
 
   const [referrals, setReferrals] = useState<ReferralRow[]>([])
@@ -75,9 +75,18 @@ export default function ReferralsAdminPage() {
         load()
         return
       }
+      // Only degrade to a manual status update when Paystack wasn't
+      // actually attempted. A real transfer attempt that failed
+      // (reason: 'request_failed') or a hard validation error must NOT
+      // be silently recorded as paid.
+      const degradable = body?.reason === 'not_configured' || body?.reason === 'no_recipient'
+      if (!degradable) {
+        toast(body?.message || body?.error || 'Could not process payout', 'error')
+        return
+      }
       if (body?.message) toast(body.message, 'info')
     }
-    const { error } = await updatePayoutRequest(id, { status })
+    const { error } = await updatePayoutRequest(id, { status }, appUser?.id)
     if (error) { toast(`Could not update payout: ${error}`, 'error'); return }
     toast(`Payout marked ${status}`, 'success')
     load()

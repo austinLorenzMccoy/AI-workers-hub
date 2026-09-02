@@ -19,6 +19,7 @@ import {
   MessageSquare,
   UserPlus,
   Contact,
+  Receipt,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -58,6 +59,12 @@ const channels = [
     label: 'Payroll',
     icon: DollarSign,
     href: '/payroll',
+  },
+  {
+    id: 'pay-slips',
+    label: 'Pay Slips',
+    icon: Receipt,
+    href: '/pay-slips',
   },
   {
     id: 'warnings',

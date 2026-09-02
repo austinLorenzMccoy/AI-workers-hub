@@ -14,6 +14,7 @@ import {
   submitFeedback,
   fetchMyDisputes,
   raiseDispute,
+  getPaySlipFileUrl,
 } from '@/lib/db'
 import type {
   WorkerEarningsSummaryRow, WorkerTimesheetRow, PaySlipRow, PaymentRow,
@@ -96,6 +97,12 @@ export function WorkerPortal() {
     toast('Feedback submitted — only Admins can view this', 'success')
     ;(e.target as HTMLFormElement).reset()
     load()
+  }
+
+  const handleDownloadSlip = async (path: string) => {
+    const url = await getPaySlipFileUrl(path)
+    if (!url) { toast('Could not generate a download link', 'error'); return }
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   const handleDispute = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -203,15 +210,15 @@ export function WorkerPortal() {
           <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
             <Clock className="h-4 w-4" /> Log Hours Worked
           </h2>
-          <form onSubmit={handleLogHours} className="grid grid-cols-2 gap-3 mb-4">
+          <form onSubmit={handleLogHours} className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2">
             <input name="work_date" type="date" defaultValue={new Date().toISOString().split('T')[0]}
-              className="col-span-1 rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm" />
+              className="rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm" />
             <input name="hours_worked" type="number" step="0.25" min="0.25" max="24" required placeholder="Hours"
-              className="col-span-1 rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm" />
+              className="rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm" />
             <input name="notes" placeholder="Notes (optional)"
-              className="col-span-2 rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm" />
+              className="rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm sm:col-span-2" />
             <button type="submit" disabled={logging || !rate}
-              className="col-span-2 flex items-center justify-center gap-2 rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors disabled:opacity-50">
+              className="flex items-center justify-center gap-2 rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors disabled:opacity-50 sm:col-span-2">
               <Plus className="h-4 w-4" /> {logging ? 'Logging…' : `Log at $${rate}/hr`}
             </button>
           </form>
@@ -246,9 +253,16 @@ export function WorkerPortal() {
             ) : (
               <>
                 {paySlips.map((p) => (
-                  <div key={p.id} className="rounded bg-background/50 px-3 py-2 text-xs flex items-center justify-between">
+                  <div key={p.id} className="rounded bg-background/50 px-3 py-2 text-xs flex items-center justify-between gap-2">
                     <span>{p.period_month} {p.period_year} — expected</span>
-                    <span className="font-semibold text-foreground">${p.expected_amount_usd.toLocaleString()}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">${p.expected_amount_usd.toLocaleString()}</span>
+                      {p.slip_file_url && (
+                        <button onClick={() => handleDownloadSlip(p.slip_file_url!)} className="font-medium text-ops hover:underline">
+                          View
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {payments.map((p) => (

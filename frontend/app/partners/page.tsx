@@ -5,8 +5,9 @@ import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/lib/toast-context'
 import { AccessDenied } from '@/components/ui/access-denied'
 import { fetchPartnerContacts, insertPartnerContact, deletePartnerContact } from '@/lib/db'
+import { ImportDialog, IMPORT_CONFIGS } from '@/components/import/import-dialog'
 import type { PartnerContactRow, PartnerContactType } from '@/types'
-import { Loader2, Contact, Plus, X, Trash2 } from 'lucide-react'
+import { Loader2, Contact, Plus, X, Trash2, Upload } from 'lucide-react'
 
 const TYPE_LABEL: Record<PartnerContactType, string> = {
   worker: 'Worker', referrer: 'Referrer', partner: 'Partner / Client',
@@ -14,15 +15,18 @@ const TYPE_LABEL: Record<PartnerContactType, string> = {
 
 /** Partner / contact records — builds a reusable contact database from
  *  workers, referrers, and upstream partners for future outreach.
- *  Bulk Excel/CSV import can reuse the existing ImportDialog component
- *  (see components/import/import-dialog.tsx) targeting this table. */
+ *  Bulk Excel/CSV import reuses the shared ImportDialog component
+ *  (see components/import/import-dialog.tsx). */
 export default function PartnersPage() {
   const { hasAccess, appUser, permissions } = useAuth()
   const { toast } = useToast()
   const [contacts, setContacts] = useState<PartnerContactRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [filter, setFilter] = useState<PartnerContactType | null>(null)
+
+  const reload = () => fetchPartnerContacts().then(setContacts)
 
   useEffect(() => {
     fetchPartnerContacts().then((data) => { setContacts(data); setLoading(false) })
@@ -75,14 +79,30 @@ export default function PartnersPage() {
             Workers, referrers, and upstream partners — one reusable contact database
           </p>
         </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-2 rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors"
-        >
-          {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {showForm ? 'Cancel' : 'New Contact'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+          >
+            <Upload className="h-4 w-4" /> Import
+          </button>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-2 rounded-lg bg-ops px-4 py-2 text-sm font-medium text-white hover:bg-ops-dark transition-colors"
+          >
+            {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {showForm ? 'Cancel' : 'New Contact'}
+          </button>
+        </div>
       </div>
+
+      {showImport && (
+        <ImportDialog
+          config={IMPORT_CONFIGS.partner_contacts}
+          onComplete={() => { setShowImport(false); reload() }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
 
       {showForm && (
         <form onSubmit={handleAdd} className="grid grid-cols-1 gap-3 rounded-lg border border-ops/20 bg-ops/5 p-6 sm:grid-cols-3">

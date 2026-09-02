@@ -46,6 +46,10 @@ interface EditState {
   role: UserRole
   platform_access: string[]
   can_view_orders: boolean
+  /** New Paystack recipient code to set. Blank means "leave unchanged" —
+   *  the existing value is never round-tripped to the browser (see
+   *  GET /api/admin/users, which masks it). */
+  paystack_recipient_code: string
 }
 
 export default function AdminPage() {
@@ -95,6 +99,7 @@ export default function AdminPage() {
       role: user.role as UserRole,
       platform_access: user.platform_access ?? [],
       can_view_orders: user.can_view_orders,
+      paystack_recipient_code: '',
     })
     setMessage(null)
   }
@@ -102,6 +107,28 @@ export default function AdminPage() {
   const cancelEditing = () => {
     setEditingId(null)
     setEditState(null)
+  }
+
+  /** Explicit clear — separate from saveUser(), whose blank input means
+   *  "leave unchanged". This is the only way to remove a compromised or
+   *  wrong Paystack code, since GET never round-trips the real value. */
+  const clearPayoutCode = async (userId: string) => {
+    if (!window.confirm('Clear this Paystack payout code? The worker/referrer will need a new one before their next payout.')) return
+    setSaving(true)
+    setMessage(null)
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, paystack_recipient_code: null }),
+    })
+    const data = await res.json()
+    setSaving(false)
+    if (res.ok) {
+      setMessage({ type: 'success', text: 'Payout code cleared' })
+      loadUsers()
+    } else {
+      setMessage({ type: 'error', text: data.error || 'Failed to clear payout code' })
+    }
   }
 
   const saveUser = async (userId: string) => {
@@ -117,6 +144,9 @@ export default function AdminPage() {
         role: editState.role,
         platform_access: editState.role === 'admin' ? null : editState.platform_access,
         can_view_orders: editState.role === 'admin' ? true : editState.can_view_orders,
+        ...(editState.paystack_recipient_code
+          ? { paystack_recipient_code: editState.paystack_recipient_code }
+          : {}),
       }),
     })
 
@@ -399,6 +429,37 @@ export default function AdminPage() {
                         />
                         <span className="text-xs text-foreground">Can view orders</span>
                       </label>
+
+                      {/* Paystack payout recipient code — workers/referrers only */}
+                      {(editState!.role === 'worker' || editState!.role === 'referrer') && (
+                        <div>
+                          <label className="text-xs font-medium text-foreground mb-1 block">
+                            Paystack Payout Code
+                          </label>
+                          <div className="flex gap-1.5">
+                            <input
+                              type="text"
+                              value={editState!.paystack_recipient_code}
+                              onChange={(e) => setEditState({ ...editState!, paystack_recipient_code: e.target.value })}
+                              placeholder={user.paystack_recipient_code ? 'On file — enter to replace' : 'Not set — e.g. RCP_xxxxx'}
+                              className="flex-1 rounded-lg border border-border-subtle bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-ops/50"
+                            />
+                            {user.paystack_recipient_code && (
+                              <button
+                                type="button"
+                                onClick={() => clearPayoutCode(user.id)}
+                                disabled={saving}
+                                className="shrink-0 rounded-lg border border-red-500/30 px-2.5 py-1 text-[10px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                          <p className="mt-1 text-[10px] text-muted-foreground">
+                            Stored encrypted. Create this via Paystack&apos;s Create Transfer Recipient API for the worker&apos;s bank account.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 

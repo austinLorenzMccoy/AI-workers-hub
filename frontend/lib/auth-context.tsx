@@ -146,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!appUser) return false
     const accessMap: Record<UserRole, string[]> = {
       admin:      ['dashboard', 'tracker', 'registry', 'onboarding', 'orders', 'payroll', 'reports', 'activity', 'audit', 'admin',
-                   'warnings', 'disputes', 'feedback', 'referrals', 'partners'],
+                   'warnings', 'disputes', 'feedback', 'referrals', 'partners', 'pay-slips'],
       manager:    ['dashboard', 'tracker', 'registry', 'onboarding', 'payroll', 'reports',
                    'warnings', 'disputes', 'partners',
                    ...(appUser.can_view_orders ? ['orders'] : [])],

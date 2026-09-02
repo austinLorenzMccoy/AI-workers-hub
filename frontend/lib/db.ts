@@ -427,6 +427,31 @@ export async function deleteOnboardingRow(rowId: string): Promise<{ error: strin
   return { error: error?.message ?? null }
 }
 
+// ── Audit log ────────────────────────────────────────────────────
+// Shared by the Worker Recovery mutations below (warnings, disputes,
+// pay slips, payouts) so every state change is traceable to who did
+// it and when, matching the pattern already used in
+// app/api/admin/users/route.ts. Insert-only (RLS: "Any authed user
+// can insert audit"), so this can run from the browser client.
+
+async function logAudit(params: {
+  userId: string | null | undefined
+  action: string
+  entityType: string
+  entityId?: string | null
+  details?: Record<string, unknown>
+}): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('audit_log').insert({
+    user_id: params.userId ?? null,
+    action: params.action,
+    entity_type: params.entityType,
+    entity_id: params.entityId ?? null,
+    details: params.details ?? {},
+  } as any)
+  if (error) console.error('logAudit:', error.message)
+}
+
 // ── Worker Recovery System ───────────────────────────────────────
 // Self-service worker portal, timesheets, pay slips, payments,
 // warnings, feedback, disputes, referrals, payouts, partner contacts.
@@ -508,7 +533,56 @@ export async function issuePaySlip(
   const supabase = createClient()
   const { data, error } = await supabase
     .from('pay_slips').insert(slip as any).select('id').single()
-  return { id: (data as any)?.id ?? null, error: error?.message ?? null }
+  const id = (data as any)?.id ?? null
+  if (!error && id) {
+    await logAudit({
+      userId: slip.issued_by,
+      action: 'pay_slip_issued',
+      entityType: 'pay_slips',
+      entityId: id,
+      details: {
+        worker_user_id: slip.worker_user_id,
+        period_month: slip.period_month,
+        period_year: slip.period_year,
+        expected_amount_usd: slip.expected_amount_usd,
+        has_file: !!slip.slip_file_url,
+      },
+    })
+  }
+  return { id, error: error?.message ?? null }
+}
+
+/** Admin oversight — every pay slip issued, across all workers. */
+export async function fetchAllPaySlips(): Promise<PaySlipRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('pay_slips').select('*').order('created_at', { ascending: false })
+  if (error) { console.error('fetchAllPaySlips:', error.message); return isDemoMode() ? DEMO_PAY_SLIPS : [] }
+  return liveOrDemo((data ?? []) as PaySlipRow[], DEMO_PAY_SLIPS)
+}
+
+/**
+ * Uploads a pay slip document (PDF/image) to the private `pay-slips`
+ * storage bucket under `${workerUserId}/...` so RLS can scope worker
+ * read-access to their own folder. Returns the storage path (not a
+ * public URL — the bucket is private) to store in `slip_file_url`.
+ */
+export async function uploadPaySlipFile(
+  workerUserId: string, file: File
+): Promise<{ path: string | null; error: string | null }> {
+  const supabase = createClient()
+  const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_')
+  const path = `${workerUserId}/${Date.now()}-${safeName}`
+  const { error } = await supabase.storage.from('pay-slips').upload(path, file, { upsert: false })
+  return { path: error ? null : path, error: error?.message ?? null }
+}
+
+/** Short-lived signed URL to view/download a pay slip file (bucket is private). */
+export async function getPaySlipFileUrl(path: string): Promise<string | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase.storage.from('pay-slips').createSignedUrl(path, 300)
+  if (error) { console.error('getPaySlipFileUrl:', error.message); return null }
+  return data?.signedUrl ?? null
 }
 
 export async function fetchPayments(workerUserId: string): Promise<PaymentRow[]> {
@@ -519,6 +593,52 @@ export async function fetchPayments(workerUserId: string): Promise<PaymentRow[]>
   const demo = DEMO_PAYMENTS.filter((p) => p.worker_user_id === workerUserId)
   if (error) { console.error('fetchPayments:', error.message); return isDemoMode() ? demo : [] }
   return liveOrDemo((data ?? []) as PaymentRow[], demo)
+}
+
+/** Admin oversight — every payment across all workers (used to show
+ *  paid/unpaid status per pay slip on the Pay Slips page). */
+export async function fetchAllPayments(): Promise<PaymentRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('payments').select('*').order('created_at', { ascending: false })
+  if (error) { console.error('fetchAllPayments:', error.message); return isDemoMode() ? DEMO_PAYMENTS : [] }
+  return liveOrDemo((data ?? []) as PaymentRow[], DEMO_PAYMENTS)
+}
+
+/**
+ * Manual fallback for month-end salary settlement — records a
+ * `payments` row directly (no Paystack call). Used by the Pay Slips
+ * page when POST /api/payments/process degrades (Paystack not
+ * configured / no recipient code on file), so an admin settling
+ * off-platform can still mark a slip paid. See PRD §4.3 step 2.
+ */
+export async function recordPaySlipPayment(
+  entry: Pick<PaymentRow, 'worker_user_id' | 'pay_slip_id' | 'amount_usd' | 'status'>,
+  processedBy?: string
+): Promise<{ id: string | null; error: string | null }> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('payments')
+    .insert({
+      worker_user_id: entry.worker_user_id,
+      pay_slip_id: entry.pay_slip_id,
+      amount_usd: entry.amount_usd,
+      status: entry.status,
+      method: 'manual',
+      paid_at: entry.status === 'paid' ? new Date().toISOString() : null,
+    } as any)
+    .select('id').single()
+  const id = (data as any)?.id ?? null
+  if (!error && id) {
+    await logAudit({
+      userId: processedBy, action: 'payment_recorded', entityType: 'payments', entityId: id,
+      details: { worker_user_id: entry.worker_user_id, pay_slip_id: entry.pay_slip_id, amount_usd: entry.amount_usd, status: entry.status },
+    })
+  }
+  if (error?.code === '23505') {
+    return { id: null, error: 'This pay slip has already been paid.' }
+  }
+  return { id, error: error?.message ?? null }
 }
 
 // -- Warnings (progressive escalation, 5 = auto-termination) ---------
@@ -534,22 +654,32 @@ export async function fetchWarnings(workerUserId: string): Promise<WarningEventR
 }
 
 export async function issueWarning(
-  workerUserId: string, reason: string, comment?: string
+  workerUserId: string, reason: string, comment: string | undefined, issuedBy: string
 ): Promise<{ id: string | null; error: string | null }> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('warning_events')
-    .insert({ worker_user_id: workerUserId, reason, comment: comment ?? null } as any)
+    .insert({ worker_user_id: workerUserId, reason, comment: comment ?? null, issued_by: issuedBy } as any)
     .select('id').single()
-  return { id: (data as any)?.id ?? null, error: error?.message ?? null }
+  const id = (data as any)?.id ?? null
+  if (!error && id) {
+    await logAudit({
+      userId: issuedBy, action: 'warning_issued', entityType: 'warning_events', entityId: id,
+      details: { worker_user_id: workerUserId, reason },
+    })
+  }
+  return { id, error: error?.message ?? null }
 }
 
-export async function revokeWarning(id: string): Promise<{ error: string | null }> {
+export async function revokeWarning(id: string, revokedBy: string): Promise<{ error: string | null }> {
   const supabase = createClient() as any
   const { error } = await supabase
     .from('warning_events')
-    .update({ is_revoked: true, revoked_at: new Date().toISOString() })
+    .update({ is_revoked: true, revoked_at: new Date().toISOString(), revoked_by: revokedBy })
     .eq('id', id)
+  if (!error) {
+    await logAudit({ userId: revokedBy, action: 'warning_revoked', entityType: 'warning_events', entityId: id })
+  }
   return { error: error?.message ?? null }
 }
 
@@ -607,12 +737,19 @@ export async function raiseDispute(
   entry: Omit<DisputeRow, 'id' | 'created_at' | 'updated_at' | 'status' | 'resolution_notes' | 'resolved_by' | 'resolved_at'>
 ): Promise<{ error: string | null }> {
   const supabase = createClient()
-  const { error } = await supabase.from('disputes').insert(entry as any)
+  const { data, error } = await supabase.from('disputes').insert(entry as any).select('id').single()
+  const id = (data as any)?.id ?? null
+  if (!error && id) {
+    await logAudit({
+      userId: entry.worker_user_id, action: 'dispute_raised', entityType: 'disputes', entityId: id,
+      details: { subject: entry.subject },
+    })
+  }
   return { error: error?.message ?? null }
 }
 
 export async function resolveDispute(
-  id: string, status: DisputeRow['status'], resolutionNotes?: string
+  id: string, status: DisputeRow['status'], resolutionNotes: string | undefined, resolvedBy: string
 ): Promise<{ error: string | null }> {
   const supabase = createClient() as any
   const { error } = await supabase
@@ -620,9 +757,13 @@ export async function resolveDispute(
     .update({
       status,
       resolution_notes: resolutionNotes ?? null,
+      resolved_by: resolvedBy,
       resolved_at: new Date().toISOString(),
     })
     .eq('id', id)
+  if (!error) {
+    await logAudit({ userId: resolvedBy, action: 'dispute_resolved', entityType: 'disputes', entityId: id, details: { status } })
+  }
   return { error: error?.message ?? null }
 }
 
@@ -715,13 +856,20 @@ export async function requestPayout(
 
 export async function updatePayoutRequest(
   id: string,
-  updates: Partial<Pick<PayoutRequestRow, 'status' | 'paystack_reference' | 'notes'>>
+  updates: Partial<Pick<PayoutRequestRow, 'status' | 'paystack_reference' | 'notes'>>,
+  processedBy?: string
 ): Promise<{ error: string | null }> {
   const supabase = createClient() as any
   const { error } = await supabase
     .from('payout_requests')
-    .update({ ...updates, processed_at: new Date().toISOString() })
+    .update({ ...updates, processed_by: processedBy ?? null, processed_at: new Date().toISOString() })
     .eq('id', id)
+  if (!error && processedBy) {
+    await logAudit({
+      userId: processedBy, action: `payout_${updates.status ?? 'updated'}`, entityType: 'payout_requests',
+      entityId: id, details: updates,
+    })
+  }
   return { error: error?.message ?? null }
 }
 

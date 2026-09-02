@@ -1,23 +1,10 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { initiateTransfer, isPaystackConfigured } from '@/lib/paystack'
+import { getDecryptedRecipientCode } from '@/lib/crypto'
+import { assertAdmin, isDemoPreview } from '@/lib/api-admin-guard'
 
 export const dynamic = 'force-dynamic'
-
-async function isDemoPreview() {
-  const jar = await cookies()
-  return jar.get('wh_demo')?.value === '1'
-}
-
-async function assertAdmin(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
-) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data } = await supabase.from('app_users').select('role').eq('id', user.id).single()
-  return (data as any)?.role === 'admin' ? user : null
-}
 
 /**
  * POST /api/payouts/process — admin-only. Settles an *approved*
@@ -66,7 +53,7 @@ export async function POST(request: NextRequest) {
 
   const { data: requester } = await db
     .from('app_users').select('paystack_recipient_code, display_name').eq('id', (payout as any).requester_user_id).single()
-  const recipientCode = (requester as any)?.paystack_recipient_code
+  const recipientCode = getDecryptedRecipientCode((requester as any)?.paystack_recipient_code)
 
   if (!recipientCode) {
     return NextResponse.json({
@@ -103,6 +90,14 @@ export async function POST(request: NextRequest) {
       processed_at: new Date().toISOString(),
     })
     .eq('id', payoutRequestId)
+
+  await db.from('audit_log').insert({
+    user_id: admin.id,
+    action: 'payout_processed',
+    entity_type: 'payout_requests',
+    entity_id: payoutRequestId,
+    details: { reference: result.data.reference, amount_usd: (payout as any).amount_usd, type: (payout as any).type },
+  })
 
   return NextResponse.json({ processed: true, reference: result.data.reference })
 }

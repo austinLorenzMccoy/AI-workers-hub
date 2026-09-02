@@ -10,6 +10,7 @@ import {
   issueWarning,
   revokeWarning,
   fetchAllDisputes,
+  fetchMyDisputes,
   resolveDispute,
 } from '@/lib/db'
 import type { WorkerEarningsSummaryRow, WarningEventRow, DisputeRow } from '@/types'
@@ -18,7 +19,7 @@ import { Loader2, AlertTriangle, Gavel, X } from 'lucide-react'
 const DISPUTE_STATUSES: DisputeRow['status'][] = ['open', 'in_review', 'resolved', 'rejected']
 
 export default function WarningsAndDisputesPage() {
-  const { hasAccess } = useAuth()
+  const { hasAccess, appUser } = useAuth()
   const { toast } = useToast()
 
   const [workers, setWorkers] = useState<WorkerEarningsSummaryRow[]>([])
@@ -26,6 +27,7 @@ export default function WarningsAndDisputesPage() {
   const [loading, setLoading] = useState(true)
   const [activeWorker, setActiveWorker] = useState<WorkerEarningsSummaryRow | null>(null)
   const [activeWorkerWarnings, setActiveWorkerWarnings] = useState<WarningEventRow[]>([])
+  const [activeWorkerDisputes, setActiveWorkerDisputes] = useState<DisputeRow[]>([])
 
   const load = useCallback(async () => {
     const [w, d] = await Promise.all([fetchAllWorkerEarningsSummaries(), fetchAllDisputes()])
@@ -39,7 +41,12 @@ export default function WarningsAndDisputesPage() {
 
   const openWorkerPanel = async (w: WorkerEarningsSummaryRow) => {
     setActiveWorker(w)
-    setActiveWorkerWarnings(await fetchWarnings(w.worker_user_id))
+    const [warnings, workerDisputes] = await Promise.all([
+      fetchWarnings(w.worker_user_id),
+      fetchMyDisputes(w.worker_user_id),
+    ])
+    setActiveWorkerWarnings(warnings)
+    setActiveWorkerDisputes(workerDisputes)
   }
 
   const handleIssue = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -49,7 +56,8 @@ export default function WarningsAndDisputesPage() {
     const { error } = await issueWarning(
       activeWorker.worker_user_id,
       fd.get('reason') as string,
-      (fd.get('comment') as string) || undefined
+      (fd.get('comment') as string) || undefined,
+      appUser?.id ?? ''
     )
     if (error) { toast(`Could not issue warning: ${error}`, 'error'); return }
     toast('Warning issued', 'success')
@@ -59,7 +67,7 @@ export default function WarningsAndDisputesPage() {
   }
 
   const handleRevoke = async (id: string) => {
-    const { error } = await revokeWarning(id)
+    const { error } = await revokeWarning(id, appUser?.id ?? '')
     if (error) { toast(`Could not revoke: ${error}`, 'error'); return }
     toast('Warning revoked', 'success')
     if (activeWorker) setActiveWorkerWarnings(await fetchWarnings(activeWorker.worker_user_id))
@@ -70,11 +78,36 @@ export default function WarningsAndDisputesPage() {
     const notes = status === 'resolved' || status === 'rejected'
       ? window.prompt('Resolution notes (optional):') ?? undefined
       : undefined
-    const { error } = await resolveDispute(id, status, notes)
+    const { error } = await resolveDispute(id, status, notes, appUser?.id ?? '')
     if (error) { toast(`Could not update dispute: ${error}`, 'error'); return }
     toast('Dispute updated', 'success')
+    if (activeWorker) setActiveWorkerDisputes(await fetchMyDisputes(activeWorker.worker_user_id))
     load()
   }
+
+  const renderDisputeCard = (d: DisputeRow) => (
+    <div key={d.id} className="rounded bg-background/50 px-3 py-2">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-foreground">{d.subject}</p>
+        <span className="text-xs font-medium capitalize text-muted-foreground">{d.status.replace('_', ' ')}</span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-1">{d.description}</p>
+      {d.resolution_notes && (
+        <p className="text-xs text-foreground mt-1 italic">Resolution: {d.resolution_notes}</p>
+      )}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {DISPUTE_STATUSES.filter((s) => s !== d.status).map((s) => (
+          <button
+            key={s}
+            onClick={() => handleResolve(d.id, s)}
+            className="rounded-full border border-border-subtle px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted transition-colors capitalize"
+          >
+            Mark {s.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 
   if (loading) {
     return (
@@ -103,32 +136,42 @@ export default function WarningsAndDisputesPage() {
             <p className="text-xs text-muted-foreground py-6 text-center">No worker accounts yet</p>
           ) : (
             <div className="space-y-2 max-h-[28rem] overflow-y-auto">
-              {workers.map((w) => (
-                <button
-                  key={w.worker_user_id}
-                  onClick={() => openWorkerPanel(w)}
-                  className="flex w-full items-center justify-between rounded bg-background/50 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">{w.display_name ?? w.email}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {w.contract_status === 'terminated' ? '⚫ Terminated' : '🟢 Active'}
-                    </p>
-                  </div>
-                  <div className="flex gap-1">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <span
-                        key={i}
-                        className={`h-2 w-2 rounded-full ${
-                          i < w.active_warnings
-                            ? i < 2 ? 'bg-yellow-400' : i < 4 ? 'bg-orange-500' : 'bg-red-600'
-                            : 'bg-muted'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </button>
-              ))}
+              {workers.map((w) => {
+                const openDisputeCount = disputes.filter(
+                  (d) => d.worker_user_id === w.worker_user_id && (d.status === 'open' || d.status === 'in_review')
+                ).length
+                return (
+                  <button
+                    key={w.worker_user_id}
+                    onClick={() => openWorkerPanel(w)}
+                    className="flex w-full items-center justify-between rounded bg-background/50 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                  >
+                    <div>
+                      <p className="font-medium text-foreground">{w.display_name ?? w.email}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        {w.contract_status === 'terminated' ? '⚫ Terminated' : '🟢 Active'}
+                        {openDisputeCount > 0 && (
+                          <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                            {openDisputeCount} open dispute{openDisputeCount > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <span
+                          key={i}
+                          className={`h-2 w-2 rounded-full ${
+                            i < w.active_warnings
+                              ? i < 2 ? 'bg-yellow-400' : i < 4 ? 'bg-orange-500' : 'bg-red-600'
+                              : 'bg-muted'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
@@ -142,29 +185,7 @@ export default function WarningsAndDisputesPage() {
             <p className="text-xs text-muted-foreground py-6 text-center">No disputes filed</p>
           ) : (
             <div className="space-y-3 max-h-[28rem] overflow-y-auto">
-              {disputes.map((d) => (
-                <div key={d.id} className="rounded bg-background/50 px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-foreground">{d.subject}</p>
-                    <span className="text-xs font-medium capitalize text-muted-foreground">{d.status.replace('_', ' ')}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">{d.description}</p>
-                  {d.resolution_notes && (
-                    <p className="text-xs text-foreground mt-1 italic">Resolution: {d.resolution_notes}</p>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {DISPUTE_STATUSES.filter((s) => s !== d.status).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => handleResolve(d.id, s)}
-                        className="rounded-full border border-border-subtle px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted transition-colors capitalize"
-                      >
-                        Mark {s.replace('_', ' ')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              {disputes.map(renderDisputeCard)}
             </div>
           )}
         </div>
@@ -212,6 +233,18 @@ export default function WarningsAndDisputesPage() {
                     </p>
                   </div>
                 ))}
+              </div>
+
+              {/* Per-worker dispute history — PRD §4.7 "Open disputes / Comments history" */}
+              <div className="border-t border-border-subtle pt-3">
+                <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                  <Gavel className="h-3.5 w-3.5" /> Disputes
+                </h3>
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {activeWorkerDisputes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-2">No disputes filed</p>
+                  ) : activeWorkerDisputes.map(renderDisputeCard)}
+                </div>
               </div>
             </div>
           </div>
