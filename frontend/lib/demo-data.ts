@@ -78,7 +78,7 @@ function tracker(
   task_statuses: Record<string, WorkerTrackerRow['task_statuses'][string]>,
 ): WorkerTrackerRow {
   return {
-    id, platform_id, owner_name, linker: 'Linker A', worker_name,
+    id, platform_id, owner_name, manager_id: 'demo-mgr-001', worker_name,
     email: `${worker_name.toLowerCase().replace(/\s+/g, '.')}@preview.workershub`,
     apple_connect_pw: null, platform_id_code: `W-${id.slice(-4).toUpperCase()}`,
     payoneer_linked: '✅ Yes', warning_level, sow_done: '✅ Yes', le_cert: '✅ Yes',

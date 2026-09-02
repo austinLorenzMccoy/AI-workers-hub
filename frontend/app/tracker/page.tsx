@@ -11,8 +11,9 @@ import {
   updateTrackerField,
   updateTaskStatus,
   insertTrackerRow,
+  fetchAllUsers,
 } from '@/lib/db'
-import type { Platform, WorkerTrackerRow, PlatformTaskColumn, WarningLevel, YNStatus, LinkerType } from '@/types'
+import type { Platform, WorkerTrackerRow, PlatformTaskColumn, WarningLevel, YNStatus, AppUser } from '@/types'
 import { Download, Upload, Loader2, Search, UserPlus, X } from 'lucide-react'
 import { ImportDialog, IMPORT_CONFIGS } from '@/components/import/import-dialog'
 
@@ -25,19 +26,23 @@ export default function TrackerPage() {
   const [selectedPlatform, setSelectedPlatform] = useState<string>('')
   const [workers, setWorkers] = useState<WorkerTrackerRow[]>([])
   const [taskColumns, setTaskColumns] = useState<PlatformTaskColumn[]>([])
+  const [managers, setManagers] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(true)
   const [tableLoading, setTableLoading] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [warningFilter, setWarningFilter] = useState<string>('All')
-  const [linkerFilter, setLinkerFilter] = useState<string>('All')
+  const [managerFilter, setManagerFilter] = useState<string>('All')
 
   useEffect(() => {
     fetchPlatforms().then((data) => {
       setPlatforms(data)
       if (data.length > 0) setSelectedPlatform(data[0].slug)
       setLoading(false)
+    })
+    fetchAllUsers().then((users) => {
+      setManagers(users.filter((u) => u.role === 'manager'))
     })
   }, [])
 
@@ -103,6 +108,12 @@ export default function TrackerPage() {
 
   const activePlatform = platforms.find((p) => p.slug === selectedPlatform)
 
+  const managerLabel = (managerId: string | null) => {
+    if (!managerId) return 'Unassigned'
+    const m = managers.find((x) => x.id === managerId)
+    return m?.display_name ?? m?.email ?? 'Unassigned'
+  }
+
   const filteredWorkers = workers.filter((worker) => {
     const searchText = searchQuery.toLowerCase()
     const matchesSearch =
@@ -113,9 +124,11 @@ export default function TrackerPage() {
       (worker.platform_id_code ?? '').toLowerCase().includes(searchText)
 
     const matchesWarning = warningFilter === 'All' || worker.warning_level === warningFilter
-    const matchesLinker = linkerFilter === 'All' || worker.linker === linkerFilter
+    const matchesManager =
+      managerFilter === 'All' ||
+      (managerFilter === 'Unassigned' ? !worker.manager_id : worker.manager_id === managerFilter)
 
-    return matchesSearch && matchesWarning && matchesLinker
+    return matchesSearch && matchesWarning && matchesManager
   })
 
   const warningSummary = WARNING_OPTIONS.map((level) => ({
@@ -135,7 +148,7 @@ export default function TrackerPage() {
     const { id, error } = await insertTrackerRow({
       platform_id: activePlatform.id,
       owner_name: (fd.get('owner_name') as string) || '',
-      linker: (fd.get('linker') as LinkerType) || 'Self',
+      manager_id: (fd.get('manager_id') as string) || null,
       worker_name: (fd.get('worker_name') as string) || '',
       email: (fd.get('email') as string) || null,
       apple_connect_pw: (fd.get('apple_connect_pw') as string) || null,
@@ -161,7 +174,8 @@ export default function TrackerPage() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Signal Grid</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Worker task status tracking across platforms
+            The day-to-day board: where each worker stands right now — task progress, warning
+            status, and which manager is handling them. Update this as work happens.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -202,10 +216,11 @@ export default function TrackerPage() {
               <input name="owner_name" required className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">Linker</label>
-              <select name="linker" defaultValue="Self" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50">
-                {['Linker A', 'Linker B', 'Linker C', 'Linker D', 'Self'].map((value) => (
-                  <option key={value} value={value}>{value}</option>
+              <label className="mb-1 block text-sm font-medium text-foreground">Manager</label>
+              <select name="manager_id" defaultValue="" className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50">
+                <option value="">Unassigned</option>
+                {managers.map((m) => (
+                  <option key={m.id} value={m.id}>{m.display_name ?? m.email}</option>
                 ))}
               </select>
             </div>
@@ -268,13 +283,14 @@ export default function TrackerPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
-              value={linkerFilter}
-              onChange={(e) => setLinkerFilter(e.target.value)}
+              value={managerFilter}
+              onChange={(e) => setManagerFilter(e.target.value)}
               className="rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ops/50"
             >
-              <option value="All">All linkers</option>
-              {['Linker A', 'Linker B', 'Linker C', 'Linker D', 'Self'].map((value) => (
-                <option key={value} value={value}>{value}</option>
+              <option value="All">All managers</option>
+              <option value="Unassigned">Unassigned</option>
+              {managers.map((m) => (
+                <option key={m.id} value={m.id}>{m.display_name ?? m.email}</option>
               ))}
             </select>
           </div>
@@ -307,7 +323,7 @@ export default function TrackerPage() {
       ) : filteredWorkers.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-border-subtle bg-card py-12">
           <p className="text-muted-foreground">
-            {searchQuery || warningFilter !== 'All' || linkerFilter !== 'All'
+            {searchQuery || warningFilter !== 'All' || managerFilter !== 'All'
               ? 'No workers match the current search and filters.'
               : `No workers tracked for ${activePlatform?.label ?? 'this platform'} yet.`}
           </p>
@@ -319,7 +335,7 @@ export default function TrackerPage() {
               <tr>
                 <th className="px-3 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Worker</th>
                 <th className="px-3 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Owner</th>
-                <th className="px-3 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Linker</th>
+                <th className="px-3 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Manager</th>
                 <th className="px-3 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Warning</th>
                 <th className="px-3 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Payoneer</th>
                 <th className="px-3 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">SOW</th>
@@ -343,7 +359,18 @@ export default function TrackerPage() {
                     </div>
                   </td>
                   <td className="px-3 py-2 text-xs text-foreground">{worker.owner_name}</td>
-                  <td className="px-3 py-2 text-xs text-foreground">{worker.linker}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={worker.manager_id ?? ''}
+                      onChange={(e) => handleFieldUpdate(worker.id, 'manager_id', e.target.value)}
+                      className="rounded bg-transparent border border-border-subtle px-1 py-0.5 text-xs w-28"
+                    >
+                      <option value="">Unassigned</option>
+                      {managers.map((m) => (
+                        <option key={m.id} value={m.id}>{m.display_name ?? m.email}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-3 py-2">
                     <select
                       value={worker.warning_level}
