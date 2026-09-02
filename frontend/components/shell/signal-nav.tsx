@@ -15,6 +15,10 @@ import {
   ShieldCheck,
   Settings,
   GraduationCap,
+  AlertTriangle,
+  MessageSquare,
+  UserPlus,
+  Contact,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -54,6 +58,30 @@ const channels = [
     label: 'Payroll',
     icon: DollarSign,
     href: '/payroll',
+  },
+  {
+    id: 'warnings',
+    label: 'Warnings & Disputes',
+    icon: AlertTriangle,
+    href: '/warnings',
+  },
+  {
+    id: 'feedback',
+    label: 'Feedback',
+    icon: MessageSquare,
+    href: '/feedback',
+  },
+  {
+    id: 'referrals',
+    label: 'Referrals',
+    icon: UserPlus,
+    href: '/referrals',
+  },
+  {
+    id: 'partners',
+    label: 'Partner Contacts',
+    icon: Contact,
+    href: '/partners',
   },
   {
     id: 'reports',

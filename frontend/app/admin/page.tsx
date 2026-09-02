@@ -10,7 +10,7 @@ import { Settings, Shield, Users, Loader2, Check, X, UserX, UserCheck, Trash2, L
 
 type AdminTab = 'users' | 'platforms'
 
-const ROLES: UserRole[] = ['admin', 'manager', 'supervisor', 'worker']
+const ROLES: UserRole[] = ['admin', 'manager', 'supervisor', 'worker', 'referrer']
 
 const rolePermissions: Record<UserRole, string[]> = {
   admin: [
@@ -38,7 +38,8 @@ const rolePermissions: Record<UserRole, string[]> = {
     'View Registry (assigned)',
     'View Orders (if granted)',
   ],
-  worker: ['View Dashboard (own data only)'],
+  worker: ['View Dashboard (own data only)', 'Log Timesheets', 'View Pay Slips & Warnings', 'Submit Feedback / Disputes'],
+  referrer: ['View Referral Portal (own referrals only)', 'Request Gated Payout'],
 }
 
 interface EditState {

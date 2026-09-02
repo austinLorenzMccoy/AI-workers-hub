@@ -91,6 +91,71 @@ Endpoint for updating JSONB task_statuses.
 
 ---
 
+### 3. Additional Workstream: Worker Recovery & Workforce Management Platform
+
+The document [doc/Worker_Recovery_System_PRD.md](doc/Worker_Recovery_System_PRD.md) should be treated as an additional implementation stream that extends the core WorkersHub system rather than as a separate product. The recovery system adds worker-facing accountability, payroll transparency, referral tracking, and dispute management on top of the existing platform operations.
+
+#### Scope to include in the implementation
+- Worker profiles with daily dashboard, work history, earnings summary, and payment status
+- Timesheet logging and daily earnings visibility
+- Pay slip uploads, expected payments, and month-end reconciliation
+- Warning lifecycle management with progressive escalation and automatic contract termination after five warnings
+- Feedback and dispute workflows with role-based visibility rules
+- Manager dashboard with assignment filters, warning status, dispute queues, and comments history
+- Referral portal with earnings tracking, payout gating, and tiered leaderboard concepts
+- Partner/contact records for future outreach and bulk import via Excel/CSV
+- Paystack integration for payout processing and account reconciliation
+
+#### Core data model additions
+The current WorkersHub schema should be extended with tables and views for:
+- `workers` or equivalent worker profile records
+- `worker_timesheets`
+- `pay_slips`
+- `payments` / `earnings_history`
+- `warning_events`
+- `worker_feedback`
+- `disputes`
+- `referrers` and `referrals`
+- `payout_requests`
+- `partner_contacts`
+
+These should be linked to the existing `app_users`, `platforms`, and `payroll` structures so worker identity, role permissions, and platform assignment are consistent across the system.
+
+#### Role and access control requirements
+The PRD requires strict RBAC enforcement:
+- Workers can access only their own profile, timesheets, pay slips, and disputes.
+- Managers can view assigned workers, warnings, and dispute queues but cannot see worker-submitted feedback about themselves.
+- Referrers can see their referred workers and earnings contribution, but payout requests remain disabled until all referred workers are fully paid.
+- Admins retain full visibility and can manage warnings, payouts, roles, and dispute resolution.
+
+This should be implemented using the same Supabase RLS and Next.js middleware patterns already planned in the backend implementation.
+
+#### Delivery plan
+1. Extend the base user and role model with `worker`, `manager`, `referrer`, and `admin` capabilities.
+2. Add the data tables and audit trail columns to the Supabase migration set.
+3. Build the worker dashboard and timesheet endpoints first, since they power the other flows.
+4. Implement warning, dispute, and feedback APIs with strict visibility checks.
+5. Add referral and payout logic behind the gating rules defined in the PRD.
+6. Integrate Paystack for payout processing, reconciliation, and notification updates.
+7. Add bulk import tooling for worker, referrer, and partner contact records using Excel/CSV input.
+
+#### Implementation priority
+This PRD should be executed as a Phase 2 feature set after the core WorkersHub platform foundation is stable. The core backend and frontend integration work already described in this plan should remain the foundation, while the worker recovery features expand the system into a full workforce operations and accountability layer.
+
+#### Implementation status
+
+Landed as an additive layer — no existing table, RLS policy, route, or page was changed:
+
+- **Schema**: `backend/supabase/migrations/split/part9_worker_recovery.sql` (mirrored to `20260902000000_worker_recovery.sql`) adds the `referrer` role, `worker_timesheets`, `pay_slips`, `payments`, `warning_events`, `worker_feedback`, `disputes`, `referrals`, `payout_requests`, `partner_contacts`, warning-escalation triggers, and referral payout gating.
+- **Types**: `frontend/types/{index,database}.ts` extended additively (new fields are optional on `AppUser` so existing literals still compile).
+- **Data access**: `frontend/lib/db.ts` + `frontend/lib/demo-data.ts` gained a Worker Recovery System section following the existing `liveOrDemo` fallback pattern.
+- **UI**: `/dashboard` branches by role (`WorkerPortal` / `ReferrerPortal` components) instead of touching the existing ops dashboard route; new pages `/warnings`, `/feedback`, `/referrals`, `/partners` for admin/manager.
+- **Payouts**: `frontend/lib/paystack.ts` + `POST /api/payouts/process`, gracefully degrading to manual settlement when `PAYSTACK_SECRET_KEY` isn't configured.
+- **Verified**: `npx tsc --noEmit`, `npx vitest run` (182/182 frontend + 80/80 backend passing, no regressions), and `npm run build` all succeed.
+- **Not yet built**: bulk Excel/CSV import for `partner_contacts` (the existing `components/import/import-dialog.tsx` pattern can target it), Slack/email delivery for warning escalations (currently DB-only, same as the legacy `worker_tracker.warning_level` path), and collecting real bank details for `paystack_recipient_code`.
+
+---
+
 ## Verification Plan
 
 ### Automated Tests

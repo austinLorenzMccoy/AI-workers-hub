@@ -107,6 +107,15 @@ After the base migration, apply the platform-admin policies so Control Tower →
    - Edit / deactivate platforms
    - Add, reorder, hide, or delete per-platform tracker columns
 
+### Worker Recovery System (Phase 2)
+
+After the base migration and `platform_admin.sql`, apply the Worker Recovery System — worker self-service portal, timesheets, pay slips, warnings, feedback, disputes, referrals, and payouts (see [doc/Worker_Recovery_System_PRD.md](Worker_Recovery_System_PRD.md)):
+
+1. Open `backend/supabase/migrations/20260902000000_worker_recovery.sql` (or `split/part9_worker_recovery.sql` — identical content)
+2. Run it in the Supabase SQL Editor
+3. Promote a user to `role = 'referrer'` the same way you promote admins (Step 7 below) to see the referral portal; any user with `role = 'worker'` automatically lands on their self-service dashboard at `/dashboard`
+4. Optional — set `PAYSTACK_SECRET_KEY` (see Step 4) so **Referrals & Payouts → Mark Paid** settles via Paystack Transfer instead of requiring a manual off-platform payout
+
 ---
 
 ## Step 3 — Enable Google OAuth
@@ -152,6 +161,7 @@ Go to **Vercel → Project → Settings → Environment Variables** and set:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...anon-key` | Production, Preview, Development |
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...service-key` | Production, Preview, Development |
 | `NEXT_PUBLIC_SITE_URL` | `https://your-app.vercel.app` | Production |
+| `PAYSTACK_SECRET_KEY` *(optional)* | `sk_live_...` / `sk_test_...` | Production, Preview — enables real Paystack payouts from **Referrals & Payouts**; without it, payouts still work but must be marked Paid manually |
 
 > **🎯 Setting `NEXT_PUBLIC_SUPABASE_URL` to a real Supabase URL automatically disables demo mode.** No code changes needed.
 

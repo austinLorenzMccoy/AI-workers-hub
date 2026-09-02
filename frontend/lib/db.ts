@@ -7,21 +7,35 @@ import { createClient } from '@/lib/supabase/client'
 import { isDemoMode } from '@/lib/demo'
 import {
   DEMO_ACTIVITY,
+  DEMO_DISPUTES,
   DEMO_ONBOARDING,
   DEMO_ORDERS,
+  DEMO_PARTNER_CONTACTS,
+  DEMO_PAYMENTS,
+  DEMO_PAYOUT_REQUESTS,
+  DEMO_PAY_SLIPS,
   DEMO_PAYROLL,
   DEMO_PLATFORMS,
   DEMO_PLATFORM_STATS,
+  DEMO_REFERRALS,
+  DEMO_REFERRAL_SUMMARY,
   DEMO_REGISTRY,
   DEMO_TASK_COLUMNS,
+  DEMO_TIMESHEETS,
   DEMO_TRACKER,
   DEMO_USERS,
+  DEMO_WARNING_EVENTS,
+  DEMO_WORKER_EARNINGS_SUMMARY,
+  DEMO_WORKER_FEEDBACK,
   platformsBySlug,
 } from '@/lib/demo-data'
 import type {
   AppUser, WorkerTrackerRow, WorkerRegistryRow,
   OrderRow, PayrollRow, Platform, PlatformTaskColumn,
   PlatformStatsRow, TaskStatusHistoryRow, OnboardingRow,
+  WorkerTimesheetRow, PaySlipRow, PaymentRow, WarningEventRow,
+  WorkerFeedbackRow, DisputeRow, ReferralRow, PayoutRequestRow,
+  PartnerContactRow, WorkerEarningsSummaryRow, ReferralSummaryRow,
 } from '@/types'
 
 function liveOrDemo<T>(live: T[], demo: T[]): T[] {
@@ -410,5 +424,328 @@ export async function updateOnboardingRow(
 export async function deleteOnboardingRow(rowId: string): Promise<{ error: string | null }> {
   const supabase = createClient()
   const { error } = await supabase.from('onboarding').delete().eq('id', rowId)
+  return { error: error?.message ?? null }
+}
+
+// ── Worker Recovery System ───────────────────────────────────────
+// Self-service worker portal, timesheets, pay slips, payments,
+// warnings, feedback, disputes, referrals, payouts, partner contacts.
+// See doc/Worker_Recovery_System_PRD.md.
+
+// -- Earnings summary (worker portal header) ------------------------
+
+export async function fetchWorkerEarningsSummary(
+  workerUserId: string
+): Promise<WorkerEarningsSummaryRow | null> {
+  const supabase = createClient()
+  const { data, error } = await (supabase as any)
+    .from('worker_earnings_summary').select('*').eq('worker_user_id', workerUserId).maybeSingle()
+  if (error) {
+    console.error('fetchWorkerEarningsSummary:', error.message)
+    return isDemoMode() && workerUserId === DEMO_WORKER_EARNINGS_SUMMARY.worker_user_id
+      ? DEMO_WORKER_EARNINGS_SUMMARY : null
+  }
+  if (!data && isDemoMode() && workerUserId === DEMO_WORKER_EARNINGS_SUMMARY.worker_user_id) {
+    return DEMO_WORKER_EARNINGS_SUMMARY
+  }
+  return (data as WorkerEarningsSummaryRow) ?? null
+}
+
+/** Admin/manager overview — every worker's earnings + warning summary. */
+export async function fetchAllWorkerEarningsSummaries(): Promise<WorkerEarningsSummaryRow[]> {
+  const supabase = createClient()
+  const { data, error } = await (supabase as any)
+    .from('worker_earnings_summary').select('*').order('active_warnings', { ascending: false })
+  if (error) {
+    console.error('fetchAllWorkerEarningsSummaries:', error.message)
+    return isDemoMode() ? [DEMO_WORKER_EARNINGS_SUMMARY] : []
+  }
+  return liveOrDemo((data ?? []) as WorkerEarningsSummaryRow[], [DEMO_WORKER_EARNINGS_SUMMARY])
+}
+
+// -- Timesheets -------------------------------------------------------
+
+export async function fetchTimesheets(workerUserId: string): Promise<WorkerTimesheetRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('worker_timesheets').select('*').eq('worker_user_id', workerUserId)
+    .order('work_date', { ascending: false })
+  const demo = DEMO_TIMESHEETS.filter((t) => t.worker_user_id === workerUserId)
+  if (error) { console.error('fetchTimesheets:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as WorkerTimesheetRow[], demo)
+}
+
+export async function logTimesheetHours(
+  entry: Omit<WorkerTimesheetRow, 'id' | 'created_at' | 'updated_at'>
+): Promise<{ id: string | null; error: string | null }> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('worker_timesheets').insert(entry as any).select('id').single()
+  return { id: (data as any)?.id ?? null, error: error?.message ?? null }
+}
+
+export async function deleteTimesheetEntry(id: string): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('worker_timesheets').delete().eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+// -- Pay slips & payments ---------------------------------------------
+
+export async function fetchPaySlips(workerUserId: string): Promise<PaySlipRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('pay_slips').select('*').eq('worker_user_id', workerUserId)
+    .order('period_year', { ascending: false })
+  const demo = DEMO_PAY_SLIPS.filter((p) => p.worker_user_id === workerUserId)
+  if (error) { console.error('fetchPaySlips:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as PaySlipRow[], demo)
+}
+
+export async function issuePaySlip(
+  slip: Omit<PaySlipRow, 'id' | 'created_at' | 'updated_at' | 'issued_at'>
+): Promise<{ id: string | null; error: string | null }> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('pay_slips').insert(slip as any).select('id').single()
+  return { id: (data as any)?.id ?? null, error: error?.message ?? null }
+}
+
+export async function fetchPayments(workerUserId: string): Promise<PaymentRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('payments').select('*').eq('worker_user_id', workerUserId)
+    .order('created_at', { ascending: false })
+  const demo = DEMO_PAYMENTS.filter((p) => p.worker_user_id === workerUserId)
+  if (error) { console.error('fetchPayments:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as PaymentRow[], demo)
+}
+
+// -- Warnings (progressive escalation, 5 = auto-termination) ---------
+
+export async function fetchWarnings(workerUserId: string): Promise<WarningEventRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('warning_events').select('*').eq('worker_user_id', workerUserId)
+    .order('created_at', { ascending: false })
+  const demo = DEMO_WARNING_EVENTS.filter((w) => w.worker_user_id === workerUserId)
+  if (error) { console.error('fetchWarnings:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as WarningEventRow[], demo)
+}
+
+export async function issueWarning(
+  workerUserId: string, reason: string, comment?: string
+): Promise<{ id: string | null; error: string | null }> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('warning_events')
+    .insert({ worker_user_id: workerUserId, reason, comment: comment ?? null } as any)
+    .select('id').single()
+  return { id: (data as any)?.id ?? null, error: error?.message ?? null }
+}
+
+export async function revokeWarning(id: string): Promise<{ error: string | null }> {
+  const supabase = createClient() as any
+  const { error } = await supabase
+    .from('warning_events')
+    .update({ is_revoked: true, revoked_at: new Date().toISOString() })
+    .eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+// -- Feedback (admin-only visibility, workers see their own) ---------
+
+export async function fetchMyFeedback(workerUserId: string): Promise<WorkerFeedbackRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('worker_feedback').select('*').eq('worker_user_id', workerUserId)
+    .order('created_at', { ascending: false })
+  const demo = DEMO_WORKER_FEEDBACK.filter((f) => f.worker_user_id === workerUserId)
+  if (error) { console.error('fetchMyFeedback:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as WorkerFeedbackRow[], demo)
+}
+
+/** Admin inbox — every worker's feedback. Managers must never call this. */
+export async function fetchAllFeedback(): Promise<WorkerFeedbackRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('worker_feedback').select('*').order('created_at', { ascending: false })
+  if (error) { console.error('fetchAllFeedback:', error.message); return isDemoMode() ? DEMO_WORKER_FEEDBACK : [] }
+  return liveOrDemo((data ?? []) as WorkerFeedbackRow[], DEMO_WORKER_FEEDBACK)
+}
+
+export async function submitFeedback(
+  entry: Omit<WorkerFeedbackRow, 'id' | 'created_at'>
+): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('worker_feedback').insert(entry as any)
+  return { error: error?.message ?? null }
+}
+
+// -- Disputes -----------------------------------------------------------
+
+export async function fetchMyDisputes(workerUserId: string): Promise<DisputeRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('disputes').select('*').eq('worker_user_id', workerUserId)
+    .order('created_at', { ascending: false })
+  const demo = DEMO_DISPUTES.filter((d) => d.worker_user_id === workerUserId)
+  if (error) { console.error('fetchMyDisputes:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as DisputeRow[], demo)
+}
+
+/** Manager/admin dispute queue — every open/in-review dispute. */
+export async function fetchAllDisputes(): Promise<DisputeRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('disputes').select('*').order('created_at', { ascending: false })
+  if (error) { console.error('fetchAllDisputes:', error.message); return isDemoMode() ? DEMO_DISPUTES : [] }
+  return liveOrDemo((data ?? []) as DisputeRow[], DEMO_DISPUTES)
+}
+
+export async function raiseDispute(
+  entry: Omit<DisputeRow, 'id' | 'created_at' | 'updated_at' | 'status' | 'resolution_notes' | 'resolved_by' | 'resolved_at'>
+): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('disputes').insert(entry as any)
+  return { error: error?.message ?? null }
+}
+
+export async function resolveDispute(
+  id: string, status: DisputeRow['status'], resolutionNotes?: string
+): Promise<{ error: string | null }> {
+  const supabase = createClient() as any
+  const { error } = await supabase
+    .from('disputes')
+    .update({
+      status,
+      resolution_notes: resolutionNotes ?? null,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+// -- Referrals & payout gating -----------------------------------------
+
+export async function fetchReferralSummary(referrerUserId: string): Promise<ReferralSummaryRow | null> {
+  const supabase = createClient()
+  const { data, error } = await (supabase as any)
+    .from('referral_summary').select('*').eq('referrer_user_id', referrerUserId).maybeSingle()
+  if (error) {
+    console.error('fetchReferralSummary:', error.message)
+    return isDemoMode() && referrerUserId === DEMO_REFERRAL_SUMMARY.referrer_user_id
+      ? DEMO_REFERRAL_SUMMARY : null
+  }
+  if (!data && isDemoMode() && referrerUserId === DEMO_REFERRAL_SUMMARY.referrer_user_id) {
+    return DEMO_REFERRAL_SUMMARY
+  }
+  return (data as ReferralSummaryRow) ?? null
+}
+
+export async function fetchReferrals(referrerUserId: string): Promise<ReferralRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('referrals').select('*').eq('referrer_user_id', referrerUserId)
+    .order('created_at', { ascending: false })
+  const demo = DEMO_REFERRALS.filter((r) => r.referrer_user_id === referrerUserId)
+  if (error) { console.error('fetchReferrals:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as ReferralRow[], demo)
+}
+
+/** Admin oversight — every referral across every referrer. */
+export async function fetchAllReferrals(): Promise<ReferralRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('referrals').select('*').order('created_at', { ascending: false })
+  if (error) { console.error('fetchAllReferrals:', error.message); return isDemoMode() ? DEMO_REFERRALS : [] }
+  return liveOrDemo((data ?? []) as ReferralRow[], DEMO_REFERRALS)
+}
+
+export async function addReferral(
+  entry: Omit<ReferralRow, 'id' | 'created_at' | 'updated_at' | 'status' | 'commission_usd'> & { commission_usd?: number }
+): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('referrals').insert(entry as any)
+  return { error: error?.message ?? null }
+}
+
+export async function updateReferralStatus(
+  id: string, status: ReferralRow['status']
+): Promise<{ error: string | null }> {
+  const supabase = createClient() as any
+  const { error } = await supabase.from('referrals').update({ status }).eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+// -- Payout requests (referral commission or worker early pay) --------
+
+export async function fetchMyPayoutRequests(requesterUserId: string): Promise<PayoutRequestRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('payout_requests').select('*').eq('requester_user_id', requesterUserId)
+    .order('requested_at', { ascending: false })
+  const demo = DEMO_PAYOUT_REQUESTS.filter((p) => p.requester_user_id === requesterUserId)
+  if (error) { console.error('fetchMyPayoutRequests:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as PayoutRequestRow[], demo)
+}
+
+/** Admin queue — every pending/approved payout request. */
+export async function fetchAllPayoutRequests(): Promise<PayoutRequestRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('payout_requests').select('*').order('requested_at', { ascending: false })
+  if (error) { console.error('fetchAllPayoutRequests:', error.message); return isDemoMode() ? DEMO_PAYOUT_REQUESTS : [] }
+  return liveOrDemo((data ?? []) as PayoutRequestRow[], DEMO_PAYOUT_REQUESTS)
+}
+
+/**
+ * Requests a payout. The `referral_commission` gating rule (every
+ * referred worker must already be paid) is enforced server-side by the
+ * `trg_payout_gating` trigger — this call surfaces that as a normal
+ * `{ error }` result rather than a thrown exception.
+ */
+export async function requestPayout(
+  entry: Pick<PayoutRequestRow, 'requester_user_id' | 'type' | 'amount_usd'> & { notes?: string | null }
+): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('payout_requests').insert(entry as any)
+  return { error: error?.message ?? null }
+}
+
+export async function updatePayoutRequest(
+  id: string,
+  updates: Partial<Pick<PayoutRequestRow, 'status' | 'paystack_reference' | 'notes'>>
+): Promise<{ error: string | null }> {
+  const supabase = createClient() as any
+  const { error } = await supabase
+    .from('payout_requests')
+    .update({ ...updates, processed_at: new Date().toISOString() })
+    .eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+// -- Partner / contact records (Excel/CSV import target) --------------
+
+export async function fetchPartnerContacts(): Promise<PartnerContactRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('partner_contacts').select('*').order('created_at', { ascending: false })
+  if (error) { console.error('fetchPartnerContacts:', error.message); return isDemoMode() ? DEMO_PARTNER_CONTACTS : [] }
+  return liveOrDemo((data ?? []) as PartnerContactRow[], DEMO_PARTNER_CONTACTS)
+}
+
+export async function insertPartnerContact(
+  entry: Omit<PartnerContactRow, 'id' | 'created_at'>
+): Promise<{ id: string | null; error: string | null }> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('partner_contacts').insert(entry as any).select('id').single()
+  return { id: (data as any)?.id ?? null, error: error?.message ?? null }
+}
+
+export async function deletePartnerContact(id: string): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('partner_contacts').delete().eq('id', id)
   return { error: error?.message ?? null }
 }

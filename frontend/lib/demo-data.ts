@@ -1,13 +1,24 @@
 import type {
   AppUser,
+  DisputeRow,
   OnboardingRow,
   OrderRow,
+  PaymentRow,
+  PaySlipRow,
+  PartnerContactRow,
+  PayoutRequestRow,
   PayrollRow,
   Platform,
   PlatformStatsRow,
   PlatformTaskColumn,
+  ReferralRow,
+  ReferralSummaryRow,
   TaskStatusHistoryRow,
+  WarningEventRow,
+  WorkerEarningsSummaryRow,
+  WorkerFeedbackRow,
   WorkerRegistryRow,
+  WorkerTimesheetRow,
   WorkerTrackerRow,
 } from '@/types'
 
@@ -107,18 +118,110 @@ export const DEMO_ONBOARDING: OnboardingRow[] = [
   { id: 'demo-onb-002', platform_id: 3, applicant_name: 'Jonah Park', email: 'jonah@preview.workershub', password: null, phone: null, country: 'US', referral: null, application_status: '✅ Accepted', date_applied: '2026-07-03', date_resolved: '2026-07-08', notes: null, created_at: now, updated_at: now },
 ]
 
+// Worker Recovery System demo identities — reachable once a real worker /
+// referrer signs in (isDemoMode() stays true only via env/preview, at
+// which point these ids are used as the "current user" stand-in so the
+// portal pages render meaningful preview data instead of empty states).
+export const DEMO_WORKER_USER_ID = 'demo-worker-001'
+export const DEMO_REFERRER_USER_ID = 'demo-referrer-001'
+
 export const DEMO_USERS: AppUser[] = [
   {
     id: 'demo-admin-001', email: 'admin@workershub.demo', display_name: 'Demo Admin',
     role: 'admin', platform_access: null, worker_id: null, can_view_orders: true,
-    is_active: true, last_sign_in: now, created_at: '2024-01-01T00:00:00Z', updated_at: now,
+    is_active: true, contract_status: 'active', referral_code: null, hourly_rate_usd: null,
+    last_sign_in: now, created_at: '2024-01-01T00:00:00Z', updated_at: now,
   },
   {
     id: 'demo-mgr-001', email: 'manager@workershub.demo', display_name: 'Demo Manager',
     role: 'manager', platform_access: ['oneforma', 'telus'], worker_id: null, can_view_orders: true,
-    is_active: true, last_sign_in: now, created_at: '2024-06-01T00:00:00Z', updated_at: now,
+    is_active: true, contract_status: 'active', referral_code: null, hourly_rate_usd: null,
+    last_sign_in: now, created_at: '2024-06-01T00:00:00Z', updated_at: now,
+  },
+  {
+    id: DEMO_WORKER_USER_ID, email: 'ada.okonkwo@workershub.demo', display_name: 'Ada Okonkwo',
+    role: 'worker', platform_access: null, worker_id: 'demo-trk-001', can_view_orders: false,
+    is_active: true, contract_status: 'active', referral_code: null, hourly_rate_usd: 17,
+    last_sign_in: now, created_at: '2026-03-12T00:00:00Z', updated_at: now,
+  },
+  {
+    id: DEMO_REFERRER_USER_ID, email: 'referrer@workershub.demo', display_name: 'Demo Referrer',
+    role: 'referrer', platform_access: null, worker_id: null, can_view_orders: false,
+    is_active: true, contract_status: 'active', referral_code: 'REF-DEMO001', hourly_rate_usd: null,
+    last_sign_in: now, created_at: '2026-01-15T00:00:00Z', updated_at: now,
   },
 ]
+
+// ── Worker Recovery System demo data ────────────────────────────────
+
+export const DEMO_TIMESHEETS: WorkerTimesheetRow[] = [
+  { id: 'demo-ts-001', worker_user_id: DEMO_WORKER_USER_ID, platform_id: 1, work_date: '2026-08-28', hours_worked: 6, hourly_rate_usd: 17, notes: null, created_at: now, updated_at: now },
+  { id: 'demo-ts-002', worker_user_id: DEMO_WORKER_USER_ID, platform_id: 1, work_date: '2026-08-29', hours_worked: 5.5, hourly_rate_usd: 17, notes: null, created_at: now, updated_at: now },
+  { id: 'demo-ts-003', worker_user_id: DEMO_WORKER_USER_ID, platform_id: 1, work_date: '2026-09-01', hours_worked: 7, hourly_rate_usd: 17, notes: 'Live task batch', created_at: now, updated_at: now },
+]
+
+export const DEMO_PAY_SLIPS: PaySlipRow[] = [
+  { id: 'demo-ps-001', worker_user_id: DEMO_WORKER_USER_ID, platform_id: 1, period_month: 'August', period_year: 2026, expected_amount_usd: 820, currency: 'USD', slip_file_url: null, issued_by: 'demo-admin-001', issued_at: '2026-08-13T00:00:00Z', notes: null, created_at: now, updated_at: now },
+]
+
+export const DEMO_PAYMENTS: PaymentRow[] = [
+  { id: 'demo-pmt-001', worker_user_id: DEMO_WORKER_USER_ID, pay_slip_id: 'demo-ps-001', amount_usd: 820, status: 'paid', method: 'paystack', paystack_reference: 'PSK-DEMO-001', paid_at: '2026-08-30T00:00:00Z', created_at: now, updated_at: now },
+]
+
+export const DEMO_WARNING_EVENTS: WarningEventRow[] = [
+  { id: 'demo-wn-001', worker_user_id: DEMO_WORKER_USER_ID, issued_by: 'demo-mgr-001', reason: 'Missed daily quota', comment: 'Please check in with your supervisor tomorrow.', is_revoked: false, revoked_by: null, revoked_at: null, created_at: '2026-07-20T00:00:00Z' },
+]
+
+export const DEMO_WORKER_FEEDBACK: WorkerFeedbackRow[] = [
+  { id: 'demo-fb-001', worker_user_id: DEMO_WORKER_USER_ID, category: 'process', subject: 'Task queue delays', message: 'The Oneforma queue has been slow to refresh this week.', created_at: '2026-08-25T00:00:00Z' },
+]
+
+export const DEMO_DISPUTES: DisputeRow[] = [
+  { id: 'demo-dp-001', worker_user_id: DEMO_WORKER_USER_ID, pay_slip_id: 'demo-ps-001', subject: 'Hours mismatch', description: 'Logged 18.5 hours in August but pay slip reflects fewer tasks than expected.', status: 'in_review', resolution_notes: null, resolved_by: null, resolved_at: null, created_at: '2026-08-15T00:00:00Z', updated_at: now },
+]
+
+export const DEMO_REFERRALS: ReferralRow[] = [
+  { id: 'demo-rf-001', referrer_user_id: DEMO_REFERRER_USER_ID, referred_worker_user_id: DEMO_WORKER_USER_ID, referred_name: 'Ada Okonkwo', referred_email: 'ada.okonkwo@workershub.demo', status: 'paid', commission_usd: 40, created_at: '2026-03-12T00:00:00Z', updated_at: now },
+  { id: 'demo-rf-002', referrer_user_id: DEMO_REFERRER_USER_ID, referred_worker_user_id: null, referred_name: 'Ibrahim Musa', referred_email: 'ibrahim.musa@preview.workershub', status: 'active', commission_usd: 25, created_at: '2026-06-02T00:00:00Z', updated_at: now },
+  { id: 'demo-rf-003', referrer_user_id: DEMO_REFERRER_USER_ID, referred_worker_user_id: null, referred_name: 'Nora Adeyemi', referred_email: 'nora@preview.workershub', status: 'pending', commission_usd: 0, created_at: '2026-08-12T00:00:00Z', updated_at: now },
+]
+
+export const DEMO_PAYOUT_REQUESTS: PayoutRequestRow[] = [
+  { id: 'demo-po-001', requester_user_id: DEMO_REFERRER_USER_ID, type: 'referral_commission', amount_usd: 40, status: 'pending', paystack_reference: null, notes: null, requested_at: '2026-08-20T00:00:00Z', processed_by: null, processed_at: null },
+]
+
+export const DEMO_PARTNER_CONTACTS: PartnerContactRow[] = [
+  { id: 'demo-pc-001', name: 'Nora Adeyemi', email: 'nora@preview.workershub', phone: null, country: 'NG', contact_type: 'worker', source: 'Excel import', notes: null, created_by: 'demo-admin-001', created_at: now },
+  { id: 'demo-pc-002', name: 'Global Data Partners Ltd', email: 'ops@globaldatapartners.example', phone: '+1-555-0100', country: 'US', contact_type: 'partner', source: 'Manual', notes: 'Upstream client — future outreach', created_by: 'demo-admin-001', created_at: now },
+]
+
+export const DEMO_WORKER_EARNINGS_SUMMARY: WorkerEarningsSummaryRow = {
+  worker_user_id: DEMO_WORKER_USER_ID,
+  display_name: 'Ada Okonkwo',
+  email: 'ada.okonkwo@workershub.demo',
+  contract_status: 'active',
+  month_hours: DEMO_TIMESHEETS.reduce((sum, t) => sum + t.hours_worked, 0),
+  month_earnings_usd: DEMO_TIMESHEETS.reduce((sum, t) => sum + t.hours_worked * t.hourly_rate_usd, 0),
+  total_paid_usd: 820,
+  pending_usd: 0,
+  active_warnings: 1,
+  latest_expected_amount_usd: 820,
+  latest_period_month: 'August',
+  latest_period_year: 2026,
+}
+
+export const DEMO_REFERRAL_SUMMARY: ReferralSummaryRow = {
+  referrer_user_id: DEMO_REFERRER_USER_ID,
+  display_name: 'Demo Referrer',
+  email: 'referrer@workershub.demo',
+  referral_code: 'REF-DEMO001',
+  total_referred: DEMO_REFERRALS.length,
+  paid_count: DEMO_REFERRALS.filter((r) => r.status === 'paid').length,
+  pending_count: DEMO_REFERRALS.filter((r) => r.status === 'pending').length,
+  active_count: DEMO_REFERRALS.filter((r) => r.status === 'active').length,
+  total_commission_usd: DEMO_REFERRALS.reduce((sum, r) => sum + r.commission_usd, 0),
+  eligible_for_payout: DEMO_REFERRALS.every((r) => r.status === 'paid'),
+}
 
 export const DEMO_ACTIVITY: TaskStatusHistoryRow[] = [
   { id: 'demo-act-001', tracker_row_id: 'demo-trk-001', column_key: 'live', old_value: '⏳ Pending', new_value: '🔄 In Progress', changed_by: 'demo-admin-001', changed_at: now },

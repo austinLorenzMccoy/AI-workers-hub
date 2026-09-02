@@ -263,6 +263,19 @@ PostgreSQL Functions & Triggers
 
 ---
 
+## 🧑‍💼 Worker Recovery System
+
+Implements [doc/Worker_Recovery_System_PRD.md](doc/Worker_Recovery_System_PRD.md) as an additive Phase 2 layer on top of the core schema above — see [`backend/supabase/migrations/split/part9_worker_recovery.sql`](backend/supabase/migrations/split/part9_worker_recovery.sql). Nothing here changes an existing table, policy, or route.
+
+- **5th role — `referrer`**: self-service referral portal only (`/dashboard` branches by role instead of adding new protected routes for `worker`/`referrer`).
+- **New tables**: `worker_timesheets`, `pay_slips`, `payments`, `warning_events`, `worker_feedback`, `disputes`, `referrals`, `payout_requests`, `partner_contacts` — all keyed to `app_users.id` and RLS-scoped so a worker/referrer only ever sees their own rows; admins/managers see everything their role is entitled to (feedback stays admin-only, never manager-visible, per the PRD).
+- **Warning escalation**: 5 active `warning_events` for a worker auto-sets `app_users.contract_status = 'terminated'` via trigger; revoking a warning back under 5 reinstates it.
+- **Referral payout gating**: `referrer_payout_eligible()` and the `trg_payout_gating` trigger block a `referral_commission` payout request at the database layer until every one of that referrer's `referrals` rows is `'paid'`.
+- **New pages**: `/warnings` (issue/revoke warnings + dispute queue, admin/manager), `/feedback` (admin-only inbox), `/referrals` (admin oversight + payout approval), `/partners` (contact database for future outreach).
+- **Paystack**: `lib/paystack.ts` + `POST /api/payouts/process` settle an approved payout via Paystack Transfer when `PAYSTACK_SECRET_KEY` and the requester's `paystack_recipient_code` are set; otherwise it degrades to "approve now, settle manually, mark Paid" so admins are never blocked on missing keys.
+
+---
+
 ## 🔌 API Routes
 
 | Method | Endpoint | Auth | Description |
