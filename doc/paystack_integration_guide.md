@@ -11,9 +11,14 @@ this project — no prior Paystack experience assumed.
 **Where the code lives**, so you can follow along:
 - `frontend/lib/paystack.ts` — the Paystack API client (all requests go through here)
 - `frontend/lib/crypto.ts` — encrypts the sensitive `paystack_recipient_code` field
+- `frontend/lib/fx.ts` — converts a USD amount to a worker/referrer's chosen payout currency
 - `frontend/app/api/payouts/process/route.ts` — settles referral commissions / worker early-pay requests
 - `frontend/app/api/payments/process/route.ts` — settles month-end salary from an issued pay slip
-- `frontend/app/admin/page.tsx` — Control Tower, where you paste a worker/referrer's Paystack recipient code
+- `frontend/app/api/paystack/recipients/route.ts` — creates a Transfer Recipient from the in-app form
+- `frontend/app/api/paystack/banks/route.ts` — bank list for that form's picker
+- `frontend/app/api/webhooks/paystack/route.ts` — reconciles async transfer status (§5 gap #3)
+- `frontend/app/admin/page.tsx` — Control Tower, where you paste (or create) a worker/referrer's Paystack recipient code
+- `frontend/components/shell/command-strip.tsx` — Account Settings panel, where a worker/referrer sets their own payout currency
 - `frontend/app/pay-slips/page.tsx` — where an admin/manager issues a pay slip and clicks "Mark Paid"
 - `frontend/app/referrals/page.tsx` — where an admin clicks "Mark Paid" on a payout request
 
@@ -203,78 +208,73 @@ Steps 1–6 for a referrer instead of a worker, this works the same way.
 
 ---
 
-## 5. Known gaps — read before paying anyone for real
+## 5. Gaps — status as of the PART 15 migration
 
-These are real, unresolved limitations in the current implementation.
-Don't skip this section if actual money is involved.
+All four gaps originally documented here are now closed. This section
+records what changed and how, so you know what to verify before
+paying anyone for real.
 
-### Gap 1 — No in-app UI to create a Transfer Recipient
+### Gap 1 — Recipient-creation UI — closed
 
-Right now, getting a `recipient_code` requires the manual `curl` step
-in §3 Step 5. There's no form in the app that collects a worker's bank
-account number and bank, and calls `createTransferRecipient()` (which
-already exists in `lib/paystack.ts`, just isn't wired to anything).
-Building this is the natural next step — it would live somewhere in
-Control Tower or on the worker's own profile.
+Control Tower's Paystack Payout Code field now has a "Create via
+Paystack instead of pasting a code" link (see
+`components/admin/paystack-recipient-form.tsx`) that collects account
+name, account number, and bank (picked from a live list via
+`GET /api/paystack/banks`), then calls `POST /api/paystack/recipients`
+server-side, which calls `createTransferRecipient()` and saves the
+resulting `recipient_code` encrypted. The manual `curl` step in §3
+Step 5 is now optional — use it only if you prefer working outside the
+app.
 
-### Gap 2 — Currency mismatch (important)
+### Gap 2 — Currency mismatch — closed (worker/referrer chooses)
 
-The app tracks pay slip and payout amounts as plain `_usd` numbers
-(`expected_amount_usd`, `amount_usd`). But `createTransferRecipient()`
-defaults `currency` to `'NGN'`, and both processing routes do:
+Every worker/referrer now sets their own **Payout Currency** (NGN or
+USD) themselves, from their own Account Settings panel (the header's
+Settings icon) — see `app_users.payout_currency` and
+`set_my_payout_currency()` in the PART 15 migration. Before every
+Paystack transfer, `lib/fx.ts` converts the pay slip/payout's `_usd`
+figure to that person's chosen currency at a live rate (fetched from
+`open.er-api.com`, cached 6h) and sends the **converted** amount —
+not the raw USD number — as `amountMinorUnits`. The resolved
+`currency`, `fx_rate`, and `amount_settled` are stored on the
+`payments`/`payout_requests` row for audit. If the exchange-rate
+lookup fails, the transfer is not attempted (`reason: 'fx_unavailable'`)
+and the admin falls back to manual settlement, same as
+`not_configured`/`no_recipient`.
 
-```ts
-const amountMinorUnits = Math.round(Number(payout.amount_usd) * 100)
-```
+### Gap 3 — No webhook / final-status confirmation — closed
 
-This takes the USD-labeled number and sends it to Paystack **as-is**,
-with no currency conversion. If a pay slip says `expected_amount_usd:
-500`, the transfer that actually goes out is **₦500.00** (or whatever
-currency the recipient's account uses) — not $500 worth of that
-currency. There is currently no exchange-rate step anywhere in the
-code.
+`POST /api/payments/process` and `POST /api/payouts/process` now call
+`verifyTransfer()` right after `initiateTransfer()` succeeds, instead
+of trusting the initial "accepted" response. If Paystack confirms
+`status: 'success'`, the row is marked `paid`; if `'failed'` or
+`'reversed'`, `failed`; otherwise it stays `processing` (shown in the
+UI as "Awaiting confirmation").
 
-Before paying anyone for real, decide one of:
-- **(a)** Treat the `_usd` fields as informal/display-only, and always
-  type the real local-currency settlement amount directly (i.e. the
-  number in the database *is* the NGN/GHS/ZAR amount, the "USD" label
-  in the UI is just cosmetic and should be changed).
-- **(b)** Add a real exchange-rate lookup (e.g. a daily rate from a
-  currency API) and convert before calling `initiateTransfer()`.
+A new webhook endpoint, `POST /api/webhooks/paystack`, reconciles any
+`processing` row later — register
+`https://<your-domain>/api/webhooks/paystack` in the Paystack
+Dashboard under **Settings → API Keys & Webhooks** and it'll flip a
+row to `paid` on `transfer.success`, or to `failed` on
+`transfer.failed`/`transfer.reversed`, verifying Paystack's
+`x-paystack-signature` header (HMAC-SHA512, keyed by
+`PAYSTACK_SECRET_KEY`) before trusting the payload. If you never
+register the webhook, verification alone still resolves the common
+case (most NGN transfers settle synchronously); the webhook mainly
+covers OTP-gated or later-reversed transfers.
 
-Whichever you pick, it needs code changes to `lib/paystack.ts` and
-both `.../process/route.ts` files — ask before assuming (a) is fine,
-since it means relabeling UI text across several pages.
+### Gap 4 — Duplicate-payment protection — closed (claim-before-transfer)
 
-### Gap 3 — No webhook / final-status confirmation
-
-`initiateTransfer()`'s response (`result.ok`) reflects that Paystack
-*accepted* the transfer request — not that it has *finished
-successfully*. Paystack transfers can be asynchronous: some require
-OTP confirmation, or can fail/reverse after being accepted. The app
-currently marks a pay slip/payout `paid` as soon as `result.ok` is
-true, without checking final status via `verifyTransfer()` (which
-exists in `lib/paystack.ts` but isn't called) or listening for
-Paystack's `transfer.success` / `transfer.failed` webhook events (no
-webhook endpoint exists in this app yet).
-
-For low-stakes/test use this is fine. For production payroll, add a
-webhook route (`/api/webhooks/paystack`, verifying Paystack's
-signature header) that reconciles `payments`/`payout_requests` rows
-when the async result comes back, rather than trusting the initial
-response alone.
-
-### Gap 4 — Duplicate-payment protection is partial
-
-There's a database-level guard (`idx_payments_one_paid_per_slip`, a
-unique index) that stops two "Mark Paid" clicks from *recording* two
-paid rows for the same pay slip. But if two admins click "Mark Paid"
-within the same instant, it's possible for **two real Paystack
-transfers** to fire before either request reaches the database check
-— the guard prevents the double *record*, not necessarily the double
-*transfer*. In practice this is a narrow race window, but it's worth
-knowing about if multiple admins/managers might act on the same pay
-slip at once.
+Both processing routes now **claim** the row *before* calling
+Paystack, not after: `/api/payments/process` inserts a `processing`
+payments row guarded by a unique index
+(`idx_payments_one_active_per_slip`, covering both `processing` and
+`paid`), and `/api/payouts/process` does a conditional
+`UPDATE ... WHERE status IN ('pending','approved','failed')`. A
+concurrent second click loses the claim outright (409, "already being
+processed") before it can ever reach Paystack — closing the real race
+window, not just the double-*record* case the old
+`idx_payments_one_paid_per_slip` guard covered.
 
 ---
 
@@ -295,11 +295,17 @@ slip at once.
 
 | File | Role |
 |---|---|
-| `frontend/lib/paystack.ts` | Low-level Paystack API client: `isPaystackConfigured`, `createTransferRecipient`, `initiateTransfer`, `verifyTransfer` |
+| `frontend/lib/paystack.ts` | Low-level Paystack API client: `isPaystackConfigured`, `createTransferRecipient`, `initiateTransfer`, `verifyTransfer`, `listBanks`, `verifyWebhookSignature` |
 | `frontend/lib/crypto.ts` | `encryptField` / `decryptField` / `getDecryptedRecipientCode` — encrypts `paystack_recipient_code` at rest |
+| `frontend/lib/fx.ts` | `convertUsdTo()` — converts a USD amount to NGN/USD at a live rate |
 | `frontend/app/api/payments/process/route.ts` | Settles month-end salary from a pay slip |
 | `frontend/app/api/payouts/process/route.ts` | Settles referral commission / worker early-pay requests |
+| `frontend/app/api/paystack/recipients/route.ts` | Creates a Transfer Recipient from the in-app form |
+| `frontend/app/api/paystack/banks/route.ts` | Bank list for the recipient-creation form |
+| `frontend/app/api/webhooks/paystack/route.ts` | Reconciles async `transfer.success`/`transfer.failed`/`transfer.reversed` events |
 | `frontend/app/pay-slips/page.tsx` | Issue pay slips, "Mark Paid" button |
 | `frontend/app/referrals/page.tsx` | Approve referrals, "Mark Paid" button on payout requests |
-| `frontend/app/admin/page.tsx` | Set/clear a user's `paystack_recipient_code` |
+| `frontend/app/admin/page.tsx` | Set/clear/create a user's `paystack_recipient_code` |
+| `frontend/components/admin/paystack-recipient-form.tsx` | The in-app "Create via Paystack" form |
+| `frontend/components/shell/command-strip.tsx` | Worker/referrer self-service Payout Currency picker |
 | `frontend/.env.example` | Documents the required env vars |
