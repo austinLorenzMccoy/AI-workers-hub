@@ -189,6 +189,45 @@ export async function fetchTaskHistory(rowId: string): Promise<TaskStatusHistory
   )
 }
 
+// ── Manager team view ───────────────────────────────────────────
+// Scopes tracker rows + activity to the workers a given manager has been
+// assigned via worker_tracker.manager_id (see 20260903000000_tracker_manager.sql).
+// RLS already limits `manager` role selects to their platform_access, so
+// this is a narrower client-side slice of what tracker_select already
+// permits — no new policy needed.
+
+export async function fetchMyTeamTracker(managerId: string): Promise<WorkerTrackerRow[]> {
+  const supabase = createClient()
+  const { data, error } = await (supabase as any)
+    .from('worker_tracker')
+    .select('*, platforms(slug, label, icon, color_hex)')
+    .eq('manager_id', managerId)
+    .order('worker_name')
+
+  const demo = DEMO_TRACKER.filter((r) => r.manager_id === managerId)
+  if (error) { console.error('fetchMyTeamTracker:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as WorkerTrackerRow[], demo)
+}
+
+export async function fetchMyTeamActivity(
+  managerId: string, limit = 30
+): Promise<TaskStatusHistoryRow[]> {
+  const supabase = createClient()
+  const { data, error } = await (supabase as any)
+    .from('task_status_history')
+    .select('*, worker_tracker!inner(worker_name, manager_id)')
+    .eq('worker_tracker.manager_id', managerId)
+    .order('changed_at', { ascending: false })
+    .limit(limit)
+
+  const demoTeamIds = new Set(
+    DEMO_TRACKER.filter((r) => r.manager_id === managerId).map((r) => r.id)
+  )
+  const demo = DEMO_ACTIVITY.filter((r) => demoTeamIds.has(r.tracker_row_id)).slice(0, limit)
+  if (error) { console.error('fetchMyTeamActivity:', error.message); return isDemoMode() ? demo : [] }
+  return liveOrDemo((data ?? []) as any as TaskStatusHistoryRow[], demo)
+}
+
 // ── Workers registry ────────────────────────────────────────────
 
 export async function fetchRegistryByPlatform(platformSlug: string): Promise<WorkerRegistryRow[]> {
@@ -862,6 +901,21 @@ export async function updateReferralStatus(
   return { error: error?.message ?? null }
 }
 
+export async function updateReferral(
+  id: string,
+  updates: Partial<Pick<ReferralRow, 'referrer_user_id' | 'referred_name' | 'referred_email'>>
+): Promise<{ error: string | null }> {
+  const supabase = createClient() as any
+  const { error } = await supabase.from('referrals').update(updates).eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+export async function deleteReferral(id: string): Promise<{ error: string | null }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('referrals').delete().eq('id', id)
+  return { error: error?.message ?? null }
+}
+
 // -- Payout requests (referral commission or worker early pay) --------
 
 export async function fetchMyPayoutRequests(requesterUserId: string): Promise<PayoutRequestRow[]> {
@@ -933,6 +987,14 @@ export async function insertPartnerContact(
   const { data, error } = await supabase
     .from('partner_contacts').insert(entry as any).select('id').single()
   return { id: (data as any)?.id ?? null, error: error?.message ?? null }
+}
+
+export async function updatePartnerContact(
+  id: string, updates: Partial<Omit<PartnerContactRow, 'id' | 'created_at' | 'created_by'>>
+): Promise<{ error: string | null }> {
+  const supabase = createClient() as any
+  const { error } = await supabase.from('partner_contacts').update(updates).eq('id', id)
+  return { error: error?.message ?? null }
 }
 
 export async function deletePartnerContact(id: string): Promise<{ error: string | null }> {
