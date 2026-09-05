@@ -35,8 +35,10 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => mockSupabase,
 }))
 
+let demoModeActive = false
+
 vi.mock('@/lib/demo', () => ({
-  isDemoMode: () => false,
+  isDemoMode: () => demoModeActive,
 }))
 
 // ── Import under test ───────────────────────────────────────────
@@ -60,6 +62,7 @@ import {
 beforeEach(() => {
   vi.clearAllMocks()
   mockResponse = { data: null, error: null }
+  demoModeActive = false
   // Restore from() after any mockImplementation overrides
   mockSupabase.from = vi.fn(() => chain)
 })
@@ -71,6 +74,34 @@ describe('demo fallbacks', () => {
     mockResponse = { data: [], error: null }
     const result = await fetchPlatforms()
     expect(result).toEqual([])
+  })
+
+  it('returns sample data when isDemoMode is false but the real result is empty', async () => {
+    demoModeActive = false
+    mockResponse = { data: [], error: null }
+    const result = await fetchPlatforms()
+    expect(result).toEqual([])
+  })
+
+  it('prefers sample data over real data while a real admin is previewing', async () => {
+    demoModeActive = true
+    mockResponse = { data: [{ id: 99, slug: 'real-live-platform' }], error: null }
+    const result = await fetchPlatforms()
+    // Never the real org's row — always the canned demo set — so a preview
+    // can never leak real data even when the real query genuinely has rows.
+    expect(result).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 99 })]))
+    expect(result.length).toBeGreaterThan(0)
+    expect(result.every((p: any) => p.slug !== 'real-live-platform')).toBe(true)
+  })
+
+  it('prefers sample data over a real (non-empty) platform_stats result while previewing', async () => {
+    demoModeActive = true
+    mockResponse = {
+      data: [{ platform_id: 99, platform_slug: 'real', total_workers: 500, total_orders: 500 }],
+      error: null,
+    }
+    const result = await fetchPlatformStats()
+    expect(result.some((r: any) => r.total_workers === 500)).toBe(false)
   })
 })
 

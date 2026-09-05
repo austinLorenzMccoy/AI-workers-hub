@@ -40,9 +40,12 @@ import type {
   WorkerTimesheetEarningsRow,
 } from '@/types'
 
+// While a real admin is previewing as the fake Demo Admin, every read
+// always returns sample data — never a mix of real and fake — so a
+// screenshot or client demo can never leak real org data. Outside of
+// preview, isDemoMode() is false and this is a no-op pass-through.
 function liveOrDemo<T>(live: T[], demo: T[]): T[] {
-  if (live.length > 0 || !isDemoMode()) return live
-  return demo
+  return isDemoMode() ? demo : live
 }
 
 // ── Platforms ───────────────────────────────────────────────────
@@ -93,17 +96,15 @@ export async function fetchPlatformTaskColumns(platformSlug: string): Promise<Pl
 }
 
 export async function fetchPlatformStats(): Promise<PlatformStatsRow[]> {
+  if (isDemoMode()) return DEMO_PLATFORM_STATS
   const supabase = createClient()
   const { data, error } = await (supabase as any)
     .from('platform_stats').select('*').order('total_workers', { ascending: false })
   if (error) {
     console.error('fetchPlatformStats:', error.message)
-    return isDemoMode() ? DEMO_PLATFORM_STATS : []
+    return []
   }
-  const rows = (data ?? []) as PlatformStatsRow[]
-  const empty = rows.length === 0 || rows.every((p) => p.total_workers === 0 && p.total_orders === 0)
-  if (empty && isDemoMode()) return DEMO_PLATFORM_STATS
-  return rows
+  return (data ?? []) as PlatformStatsRow[]
 }
 
 // ── Worker tracker ──────────────────────────────────────────────
@@ -537,16 +538,16 @@ async function logAudit(params: {
 export async function fetchWorkerEarningsSummary(
   workerUserId: string
 ): Promise<WorkerEarningsSummaryRow | null> {
+  if (isDemoMode()) {
+    return workerUserId === DEMO_WORKER_EARNINGS_SUMMARY.worker_user_id
+      ? DEMO_WORKER_EARNINGS_SUMMARY : null
+  }
   const supabase = createClient()
   const { data, error } = await (supabase as any)
     .from('worker_earnings_summary').select('*').eq('worker_user_id', workerUserId).maybeSingle()
   if (error) {
     console.error('fetchWorkerEarningsSummary:', error.message)
-    return isDemoMode() && workerUserId === DEMO_WORKER_EARNINGS_SUMMARY.worker_user_id
-      ? DEMO_WORKER_EARNINGS_SUMMARY : null
-  }
-  if (!data && isDemoMode() && workerUserId === DEMO_WORKER_EARNINGS_SUMMARY.worker_user_id) {
-    return DEMO_WORKER_EARNINGS_SUMMARY
+    return null
   }
   return (data as WorkerEarningsSummaryRow) ?? null
 }
@@ -942,16 +943,16 @@ export async function resolveDispute(
 // -- Referrals & payout gating -----------------------------------------
 
 export async function fetchReferralSummary(referrerUserId: string): Promise<ReferralSummaryRow | null> {
+  if (isDemoMode()) {
+    return referrerUserId === DEMO_REFERRAL_SUMMARY.referrer_user_id
+      ? DEMO_REFERRAL_SUMMARY : null
+  }
   const supabase = createClient()
   const { data, error } = await (supabase as any)
     .from('referral_summary').select('*').eq('referrer_user_id', referrerUserId).maybeSingle()
   if (error) {
     console.error('fetchReferralSummary:', error.message)
-    return isDemoMode() && referrerUserId === DEMO_REFERRAL_SUMMARY.referrer_user_id
-      ? DEMO_REFERRAL_SUMMARY : null
-  }
-  if (!data && isDemoMode() && referrerUserId === DEMO_REFERRAL_SUMMARY.referrer_user_id) {
-    return DEMO_REFERRAL_SUMMARY
+    return null
   }
   return (data as ReferralSummaryRow) ?? null
 }
