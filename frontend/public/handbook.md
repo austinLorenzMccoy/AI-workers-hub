@@ -2,11 +2,11 @@
 
 Everything you need to run day-to-day workforce operations, payroll and oversight across your annotation platforms — from your first sign-in to your first payout.
 
-*Last updated September 2026*
+_Last updated September 2026_
 
 ## Quick start
 
-1. Open the sign-in page and choose "Continue with Google."
+1. Open the sign-in page and choose **Continue with Google**.
 2. Nothing else happens yet — that's normal. An administrator has to assign you a role before you get real access.
 3. Once your role is set, sign back in. You'll land on your Dashboard — what it shows depends entirely on your role (see below).
 
@@ -41,11 +41,11 @@ Every worker has a warning standing shown as five dots. An admin issues a warnin
 
 Reaching five active warnings automatically ends that worker's contract — shown directly on the worker's own Dashboard, so nobody is caught off guard.
 
-Workers can push back with Raise a Dispute on their Dashboard; admins resolve disputes from Warnings & Disputes.
+Workers can push back with **Raise a Dispute** on their Dashboard; admins resolve disputes from **Warnings & Disputes**.
 
 ### How payments actually work
 
-When an admin or manager clicks Mark Paid on a pay slip or payout request, the app first tries to send a real bank transfer through Paystack.
+When an admin or manager clicks **Mark Paid** on a pay slip or payout request, the app first tries to send a real bank transfer through Paystack.
 
 It only falls back to manually recording the payment if a transfer genuinely can't be attempted — Paystack isn't configured, the worker has no payout code on file, or a currency rate is unavailable.
 
@@ -55,34 +55,33 @@ A real transfer that fails is never silently hidden as "paid" — you'll see an 
 
 Tracker, Registry, Onboarding, Orders and Payroll are all organized into tabs, one per annotation platform — Oneforma, Telus, and so on.
 
-That list isn't fixed in the code. An admin adds or edits platforms from Admin → Platforms, including whatever custom columns that platform needs.
-
----
+That list isn't fixed in the code. An admin adds or edits platforms from **Admin → Platforms**, including whatever custom columns that platform needs.
 
 ## Your Workspace
 
 ### Dashboard
-*Admin · Manager · Supervisor · Worker · Referrer*
+
+**Who can access this:** Admin, Manager, Supervisor, Worker, Referrer
 
 Dashboard is the one link every single person has — and the one page where what loads underneath depends entirely on who's signed in.
 
-**Admin, Manager & Supervisor: the Ops Overview**
+#### Admin, Manager & Supervisor: the Ops Overview
 
 A read-only command view: summary cards for total workers, orders, active warnings and total payroll; four charts covering workers and payroll by platform, warning breakdown, and order status; and a per-platform grid of worker, order and payroll counts with serious/banned badges.
 
-**Worker: your self-service portal**
+#### Worker: your self-service portal
 
-- Warning Standing — a five-dot meter of your current warnings, with a banner if your contract has been terminated.
+- **Warning Standing** — a five-dot meter of your current warnings, with a banner if your contract has been terminated.
 - Four stat cards: hours logged this month, logged earnings, expected pay slip, and total paid to date.
-- Log Hours Worked — record a date, hours (0.25–24) and an optional note. Stays disabled until an admin sets your hourly rate.
-- Your logged-hours history and Pay Slips & Payments, each slip linking to its file.
-- Submit Feedback — goes to admins only, never your manager.
-- Raise a Dispute — optionally attached to a specific pay slip.
+- **Log Hours Worked** — record a date, hours (0.25–24) and an optional note. Stays disabled until an admin sets your hourly rate.
+- Your logged-hours history and **Pay Slips & Payments**, each slip linking to its file.
+- **Submit Feedback** — goes to admins only, never your manager.
+- **Raise a Dispute** — optionally attached to a specific pay slip.
 
-**Referrer: your referral portal**
+#### Referrer: your referral portal
 
 - Your referral code, plus stat cards for people referred, fully paid, still unpaid, and potential commission.
-- Request Payout — disabled until every worker you referred is marked paid. That's enforced by the system, not just the button.
+- **Request Payout** — disabled until every worker you referred is marked paid. That's enforced by the system, not just the button.
 - Your referred workers with a status dot (pending, active, paid), a top-5 leaderboard, and your payout request history.
 - The same Feedback form workers use.
 
@@ -90,8 +89,9 @@ A read-only command view: summary cards for total workers, orders, active warnin
 
 ## Workforce Operations
 
-### Tracker ("Signal Grid")
-*Admin · Manager · Supervisor*
+### Tracker — "Signal Grid"
+
+**Who can access this:** Admin, Manager, Supervisor
 
 Your day-to-day operations board — one row per worker, one tab per platform, updated constantly as work happens.
 
@@ -106,8 +106,9 @@ Your day-to-day operations board — one row per worker, one tab per platform, u
 
 > **Good to know:** There's no explicit "Save" button for inline edits — the moment you click elsewhere, it's saved. Double-check a cell before moving on.
 
-### Registry ("Field Roster")
-*Admin · Manager · Supervisor*
+### Registry — "Field Roster"
+
+**Who can access this:** Admin, Manager, Supervisor
 
 The employment record — set once when someone joins. For tracking their day-to-day status, use Tracker instead.
 
@@ -117,8 +118,9 @@ The employment record — set once when someone joins. For tracking their day-to
 - A "Linked" badge shows whether a record already has a login account attached.
 - Edit or delete any row from its row icons.
 
-### Onboarding ("Recruit Desk")
-*Admin · Manager · Supervisor*
+### Onboarding — "Recruit Desk"
+
+**Who can access this:** Admin, Manager, Supervisor
 
 Tracks applicants through your hiring pipeline, per platform, before they become full Registry and Tracker workers.
 
@@ -129,7 +131,8 @@ Tracks applicants through your hiring pipeline, per platform, before they become
 > **Good to know:** That password field is the applicant's password for the annotation platform itself (their Oneforma login, say) — it has nothing to do with signing in to WorkersHub. Adding, editing or deleting applicants needs a permission an admin grants; without it, the pipeline is read-only.
 
 ### Worker Profile
-*Admin · Manager · Supervisor*
+
+**Who can access this:** Admin, Manager, Supervisor
 
 A read-only, full-picture page for one person — open it by clicking their name anywhere in Tracker.
 
@@ -138,8 +141,9 @@ A read-only, full-picture page for one person — open it by clicking their name
 - A history of every status change made to them in Tracker.
 - Every Registry record they appear in — handy when someone works across more than one platform.
 
-### Orders ("Restricted Zone")
-*Admin · Manager · Supervisor*
+### Orders — "Restricted Zone"
+
+**Who can access this:** Admin, Manager, Supervisor
 
 Order tracking per platform — visible to managers and supervisors only when an admin has specifically switched it on for them.
 
@@ -149,8 +153,9 @@ Order tracking per platform — visible to managers and supervisors only when an
 
 ## Money & Payments
 
-### Payroll ("Ledger Room")
-*Admin · Manager · Supervisor*
+### Payroll — "Ledger Room"
+
+**Who can access this:** Admin, Manager, Supervisor
 
 Raw, per-task bookkeeping of what was done and what it's worth — the working material behind a pay slip, not the official statement itself.
 
@@ -161,7 +166,8 @@ Raw, per-task bookkeeping of what was done and what it's worth — the working m
 > **Good to know:** Supervisors can view Payroll but can't add, edit or delete records — that's admin and manager only.
 
 ### Pay Slips
-*Admin · Manager*
+
+**Who can access this:** Admin, Manager
 
 The official month-end statement a worker actually sees and gets paid against — separate from the day-to-day Payroll ledger.
 
@@ -172,7 +178,8 @@ The official month-end statement a worker actually sees and gets paid against �
 - Editing or deleting a slip only works before it's been paid or is mid-processing.
 
 ### Referrals & Payouts
-*Admin*
+
+**Who can access this:** Admin
 
 Where referral relationships, commissions and payout requests get managed.
 
@@ -185,7 +192,8 @@ Where referral relationships, commissions and payout requests get managed.
 ## Oversight & Support
 
 ### Warnings & Disputes
-*Admin*
+
+**Who can access this:** Admin
 
 Where formal warnings are issued and worker disputes get resolved. Managers don't have access to this page.
 
@@ -195,7 +203,8 @@ Where formal warnings are issued and worker disputes get resolved. Managers don'
 - Work through that worker's disputes: mark them open, in review, resolved or rejected, with optional resolution notes.
 
 ### Feedback
-*Admin*
+
+**Who can access this:** Admin
 
 A private inbox of everything workers and referrers have submitted through their Dashboards.
 
@@ -204,7 +213,8 @@ A private inbox of everything workers and referrers have submitted through their
 > **Good to know:** Intentionally admin-only, enforced at the database level — a manager can never see feedback, including feedback about themselves.
 
 ### Partner Contacts
-*Admin · Manager · Supervisor*
+
+**Who can access this:** Admin, Manager, Supervisor
 
 A CRM-style address book for people who aren't employees in the system yet — clients, partners, and prospective referrers.
 
@@ -215,7 +225,8 @@ A CRM-style address book for people who aren't employees in the system yet — c
 > **Good to know:** Workers are never added here — they always belong in Registry. Editing and deleting contacts needs a permission an admin grants.
 
 ### Reports
-*Admin · Manager · Supervisor*
+
+**Who can access this:** Admin, Manager, Supervisor
 
 An auto-generated, read-only monthly payroll summary grouped by platform.
 
@@ -223,7 +234,8 @@ An auto-generated, read-only monthly payroll summary grouped by platform.
 - Export the whole report as a real Excel (.xlsx) file.
 
 ### My Team
-*Manager*
+
+**Who can access this:** Manager
 
 A manager-only view of just the workers assigned to you — nobody else's.
 
@@ -232,21 +244,23 @@ A manager-only view of just the workers assigned to you — nobody else's.
 - A recent-activity feed scoped to your team only.
 
 ### Activity & Audit
-*Admin*
+
+**Who can access this:** Admin
 
 Two separate read-only logs, admin-only, each with a "load more" list and a count selector.
 
-- Activity: every change made in Tracker — old value, new value, who made it, on which worker, and when.
-- Audit: everything else admin-related — role changes, activating or deactivating users, creates/updates/deletes, logins and imports — filterable by action type, with a raw details column.
+- **Activity:** every change made in Tracker — old value, new value, who made it, on which worker, and when.
+- **Audit:** everything else admin-related — role changes, activating or deactivating users, creates/updates/deletes, logins and imports — filterable by action type, with a raw details column.
 
 ## Administration
 
-### Admin ("Control Tower")
-*Admin*
+### Admin — "Control Tower"
+
+**Who can access this:** Admin
 
 Where an admin manages everyone's access and the platforms themselves.
 
-**Users & Roles**
+#### Users & Roles
 
 - A quick-reference card explaining exactly what each role can do — the same summary this handbook opens with.
 - The live user list: change anyone's role, and pick which platforms they can see.
@@ -256,7 +270,7 @@ Where an admin manages everyone's access and the platforms themselves.
 - For workers and referrers: add or update a Paystack payout code — you can only replace or clear it, since the real value is never shown back once saved — and create a Paystack recipient straight from bank details.
 - Deactivate, reactivate, or permanently delete a user. Deletion asks you to confirm twice, and you can't deactivate or delete your own account.
 
-**Platforms**
+#### Platforms
 
 Add a new annotation platform, or edit an existing one's custom task columns, without needing a code change. This is what powers the platform tabs seen everywhere else in the app.
 
@@ -282,4 +296,4 @@ Dashboard is role-aware — admins, managers and supervisors see an operations o
 
 ---
 
-*WorkersHub Handbook — Last updated September 2026. See something out of date? Ask an admin, or check the in-app reference card at Admin → Users & Roles.*
+WorkersHub Handbook — last updated September 2026. See something out of date? Ask an admin, or check the in-app reference card at **Admin → Users & Roles**.
