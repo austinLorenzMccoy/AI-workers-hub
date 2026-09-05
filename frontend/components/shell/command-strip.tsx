@@ -6,13 +6,14 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { useTheme } from '@/lib/theme-context'
 import { GlobalSearch } from './global-search'
-import { LogOut, Settings, X, Sun, Moon, Monitor, Bell, HelpCircle } from 'lucide-react'
+import { LogOut, Settings, X, Sun, Moon, Monitor, Bell, HelpCircle, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { setMyPayoutCurrency } from '@/lib/db'
+import { enableDemoCookie, clearDemoCookie } from '@/lib/demo'
 
 export function CommandStrip() {
   const router = useRouter()
-  const { appUser, signOut } = useAuth()
+  const { appUser, signOut, isDemo } = useAuth()
   const { theme, setTheme } = useTheme()
   const [showSettings, setShowSettings] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -72,6 +73,15 @@ export function CommandStrip() {
     setLoggingOut(true)
     router.push('/')
     await signOut()
+  }
+
+  const toggleDemoPreview = () => {
+    if (isDemo) {
+      clearDemoCookie()
+    } else {
+      enableDemoCookie()
+    }
+    window.location.href = '/dashboard'
   }
 
   const cycleTheme = () => {
@@ -229,6 +239,25 @@ export function CommandStrip() {
                 ))}
               </div>
             </div>
+            {appUser.role === 'admin' && (
+              <div className="rounded-lg border border-border-subtle bg-background/50 p-3">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Demo Preview</p>
+                <button
+                  onClick={toggleDemoPreview}
+                  className={`mt-1 flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                    isDemo
+                      ? 'bg-ops text-white'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }`}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  {isDemo ? 'Exit demo mode' : 'Preview as demo'}
+                </button>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Switches to sample data so you can walk a client through the app.
+                </p>
+              </div>
+            )}
             {(appUser.role === 'worker' || appUser.role === 'referrer') && (
               <div className="rounded-lg border border-border-subtle bg-background/50 p-3">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Payout Currency</p>
