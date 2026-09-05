@@ -34,7 +34,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#0F172A',
+  themeColor: '#FFFFFF',
 }
 
 export default function RootLayout({
@@ -45,10 +45,20 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} dark`}
+      className={`${inter.variable} ${jetbrainsMono.variable} light`}
       suppressHydrationWarning
     >
       <body className="font-sans antialiased" suppressHydrationWarning>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try {
+              var t = localStorage.getItem('wh-theme');
+              var resolved = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+              document.documentElement.classList.toggle('dark', resolved === 'dark');
+              document.documentElement.classList.toggle('light', resolved === 'light');
+            } catch (e) {}`,
+          }}
+        />
         <LayoutClient>{children}</LayoutClient>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

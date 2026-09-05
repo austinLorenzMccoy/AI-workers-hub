@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { useToast } from '@/lib/toast-context'
 import { CommandStrip } from './command-strip'
 import { SignalNav } from './signal-nav'
+import { WatermarkBackground } from './watermark-background'
 
 const SHELL_BYPASS = ['/', '/login']
 
@@ -63,8 +64,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <>
         {queryHandler}
-        <div className="flex h-screen items-center justify-center bg-background">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
+        <div className="relative flex h-screen items-center justify-center bg-background">
+          <WatermarkBackground />
+          <div className="relative z-10 h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-blue-500" />
         </div>
       </>
     )
@@ -74,26 +76,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <>
         {queryHandler}
-        {children}
+        <div className="relative min-h-screen bg-background">
+          <WatermarkBackground />
+          <div className="relative z-10">{children}</div>
+        </div>
       </>
     )
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="relative flex h-screen flex-col bg-background">
       {queryHandler}
-      <CommandStrip />
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="w-56 border-r border-border-subtle bg-card">
-          <div className="mb-4 border-b border-border-subtle px-4 py-3">
-            <h1 className="text-lg font-bold text-ops">WorkersHub</h1>
-            <p className="text-xs text-muted-foreground">Intelligence Control Room</p>
-          </div>
-          <SignalNav />
-        </aside>
-        <main className="flex-1 overflow-auto">
-          <div className="p-6">{children}</div>
-        </main>
+      <WatermarkBackground />
+      <div className="relative z-10 flex h-full flex-col">
+        <CommandStrip />
+        <div className="flex flex-1 overflow-hidden">
+          <aside className="w-56 border-r border-border-subtle bg-card">
+            <div className="mb-4 border-b border-border-subtle px-4 py-3">
+              <h1 className="text-lg font-bold text-ops">WorkersHub</h1>
+              <p className="text-xs text-muted-foreground">Intelligence Control Room</p>
+            </div>
+            <SignalNav />
+          </aside>
+          <main className="flex-1 overflow-auto">
+            <div className="p-6">{children}</div>
+          </main>
+        </div>
       </div>
     </div>
   )
