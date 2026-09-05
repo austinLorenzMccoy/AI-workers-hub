@@ -29,10 +29,7 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => mockSupabase,
 }))
 
-let demoPreviewEnabled = false
-
 vi.mock('@/lib/demo', () => ({
-  isDemoPreviewEnabled: () => demoPreviewEnabled,
   setDemoPreviewActive: vi.fn(),
 }))
 
@@ -50,7 +47,6 @@ beforeEach(() => {
   sessionResult = { data: { session: null } }
   appUserResult = { data: null }
   authStateCallback = null
-  demoPreviewEnabled = false
 })
 
 describe('useAuth', () => {
@@ -262,26 +258,7 @@ describe('AuthProvider', () => {
 })
 
 describe('demo preview', () => {
-  it('is unavailable when the deployment flag is off, even for an admin', async () => {
-    sessionResult = { data: { session: { user: { id: 'u1' } } } }
-    appUserResult = {
-      data: {
-        id: 'u1', email: 't@t.com', display_name: 'T', role: 'admin',
-        platform_access: null, worker_id: null, can_view_orders: true,
-        is_active: true, last_sign_in: null, created_at: '', updated_at: '',
-      },
-    }
-    const { result } = renderHook(() => useAuth(), { wrapper })
-    await waitFor(() => expect(result.current.appUser).not.toBeNull())
-    expect(result.current.canPreviewDemo).toBe(false)
-
-    act(() => result.current.toggleDemoPreview())
-    expect(result.current.isPreviewingDemo).toBe(false)
-    expect(result.current.appUser?.id).toBe('u1')
-  })
-
-  it('is unavailable to a real non-admin even when the flag is on', async () => {
-    demoPreviewEnabled = true
+  it('is unavailable to a real non-admin', async () => {
     sessionResult = { data: { session: { user: { id: 'u1' } } } }
     appUserResult = {
       data: {
@@ -296,7 +273,6 @@ describe('demo preview', () => {
   })
 
   it('lets a real admin toggle into the fake Demo Admin identity and back', async () => {
-    demoPreviewEnabled = true
     sessionResult = { data: { session: { user: { id: 'u1' } } } }
     appUserResult = {
       data: {
@@ -321,7 +297,6 @@ describe('demo preview', () => {
   })
 
   it('resets preview state on sign out', async () => {
-    demoPreviewEnabled = true
     sessionResult = { data: { session: { user: { id: 'u1' } } } }
     appUserResult = {
       data: {

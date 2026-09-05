@@ -86,7 +86,6 @@ vi.mock('@/lib/supabase/client', () => {
 
 vi.mock('@/lib/demo', () => ({
   isDemoMode: () => true,
-  isDemoPreviewEnabled: () => true,
   setDemoPreviewActive: vi.fn(),
 }))
 
