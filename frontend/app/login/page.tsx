@@ -6,16 +6,15 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { ArrowLeft, Zap } from 'lucide-react'
-import { DEMO_COOKIE } from '@/lib/demo'
 
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { appUser, isLoading, isDemo, signInWithGoogle } = useAuth()
+  const { appUser, isLoading, signInWithGoogle } = useAuth()
   const [error, setError] = useState('')
   const [signingIn, setSigningIn] = useState(false)
 
-  // If already authenticated (or demo mode), redirect to dashboard
+  // If already authenticated, redirect to dashboard
   useEffect(() => {
     if (!isLoading && appUser) {
       const next = searchParams.get('next') ?? '/dashboard'
@@ -49,18 +48,6 @@ function LoginContent() {
     )
   }
 
-  // Demo mode: show a banner while redirecting
-  if (isDemo && appUser) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="text-center space-y-4">
-          <div className="h-8 w-8 mx-auto animate-spin rounded-full border-2 border-slate-600 border-t-violet-500" />
-          <p className="text-slate-400 text-sm">Entering demo mode…</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
       <div className="w-full max-w-md">
@@ -86,14 +73,6 @@ function LoginContent() {
               </p>
             </div>
           </div>
-
-          {isDemo && (
-            <div className="mb-4 rounded-lg border border-violet-500/20 bg-violet-500/10 p-3">
-              <p className="text-sm text-violet-300">
-                🎯 <strong>Demo Mode</strong> — Showing UI preview with sample data.
-              </p>
-            </div>
-          )}
 
           {error && (
             <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
@@ -131,24 +110,6 @@ function LoginContent() {
             )}
             {signingIn ? 'Redirecting to Google…' : 'Continue with Google'}
           </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              document.cookie = `${DEMO_COOKIE}=1; path=/; max-age=86400; SameSite=Lax`
-              const next = searchParams.get('next') ?? '/dashboard'
-              const dest = next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
-              window.location.assign(dest)
-            }}
-            className="mt-3 w-full rounded-lg border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm font-medium text-violet-200 hover:bg-violet-500/20 transition-colors"
-          >
-            Preview the dashboard
-          </button>
-
-          <p className="mt-6 text-center text-xs text-slate-500">
-            Google is for live operations. Preview opens the dashboard with sample data
-            so you can walk a client through it without an account.
-          </p>
         </div>
       </div>
     </div>

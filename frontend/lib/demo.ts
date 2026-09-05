@@ -1,29 +1,16 @@
-export const DEMO_COOKIE = 'wh_demo'
+// Demo preview never bypasses real sign-in. This flag only controls whether
+// the "Preview Demo" toggle exists at all in a given deployment; actually
+// flipping it still requires a real, authenticated admin (see
+// auth-context.tsx). Set NEXT_PUBLIC_ENABLE_DEMO=true to offer the toggle to
+// admins, e.g. for client demos or screenshots.
+export const isDemoPreviewEnabled = () => process.env.NEXT_PUBLIC_ENABLE_DEMO === 'true'
 
-function isPlaceholderSupabase(): boolean {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  return !url || url === 'https://placeholder.supabase.co' || url.includes('placeholder')
+// Set by AuthProvider whenever a real, signed-in admin toggles demo preview
+// on or off. Lets non-React data loaders (lib/db.ts, page-level fetches)
+// know whether to fall back to sample data on an empty result, without
+// granting access to anything — it never decides whether auth runs.
+let previewActive = false
+export const setDemoPreviewActive = (active: boolean): void => {
+  previewActive = active
 }
-
-export function hasDemoCookie(): boolean {
-  if (typeof document === 'undefined') return false
-  return document.cookie.split(';').some((part) => part.trim().startsWith(`${DEMO_COOKIE}=1`))
-}
-
-export function enableDemoCookie(): void {
-  if (typeof document === 'undefined') return
-  document.cookie = `${DEMO_COOKIE}=1; path=/; max-age=86400; SameSite=Lax`
-}
-
-export function clearDemoCookie(): void {
-  if (typeof document === 'undefined') return
-  document.cookie = `${DEMO_COOKIE}=; path=/; max-age=0; SameSite=Lax`
-}
-
-/** Env-only demo (same on server and client). Cookie preview is detected in the browser. */
-export function isConfiguredDemoMode(): boolean {
-  return isPlaceholderSupabase() || process.env.NEXT_PUBLIC_DEMO_PREVIEW === 'true'
-}
-
-/** True when the app should show the client-preview dashboard without Google. */
-export const isDemoMode = () => isConfiguredDemoMode() || hasDemoCookie()
+export const isDemoMode = (): boolean => previewActive

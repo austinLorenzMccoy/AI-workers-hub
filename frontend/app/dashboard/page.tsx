@@ -17,7 +17,7 @@ import type { PlatformStatsRow } from '@/types'
 import { Users, ShoppingCart, AlertTriangle, DollarSign, Loader2 } from 'lucide-react'
 
 export default function DashboardPage() {
-  const { hasAccess, appUser, isDemo, isLoading: authLoading } = useAuth()
+  const { hasAccess, appUser, isPreviewingDemo, isLoading: authLoading } = useAuth()
   const [stats, setStats] = useState<PlatformStatsRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -76,9 +76,9 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Real-time overview of worker operations across all platforms
         </p>
-        {isDemo && (
+        {isPreviewingDemo && (
           <p className="mt-3 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-sm text-violet-200">
-            Preview mode — sample operations data. Sign in with Google for live workers.
+            Demo preview — browsing as Demo Admin with sample data. Exit preview from the top bar to return to your real dashboard.
             {process.env.NEXT_PUBLIC_TRAINER_URL ? (
               <>
                 {' '}

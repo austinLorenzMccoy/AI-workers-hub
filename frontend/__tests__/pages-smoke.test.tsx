@@ -7,7 +7,9 @@ const adminAuth = {
   user: { id: 'demo-admin-001' },
   appUser: DEMO_USERS[0],
   isLoading: false,
-  isDemo: true,
+  canPreviewDemo: true,
+  isPreviewingDemo: true,
+  toggleDemoPreview: () => {},
   hasAccess: () => true,
   hasRole: () => true,
   permissions: { canEditOrders: true, canViewPayroll: true, canManageRoles: true },
@@ -84,7 +86,8 @@ vi.mock('@/lib/supabase/client', () => {
 
 vi.mock('@/lib/demo', () => ({
   isDemoMode: () => true,
-  DEMO_COOKIE: 'wh_demo',
+  isDemoPreviewEnabled: () => true,
+  setDemoPreviewActive: vi.fn(),
 }))
 
 import DashboardPage from '@/app/dashboard/page'

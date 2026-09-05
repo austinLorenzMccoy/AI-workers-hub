@@ -6,7 +6,7 @@ import React, {
 } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-import { clearDemoCookie, hasDemoCookie, isConfiguredDemoMode } from '@/lib/demo'
+import { isDemoPreviewEnabled, setDemoPreviewActive } from '@/lib/demo'
 import type { AppUser, UserPermissions, UserRole } from '@/types'
 import { getPermissions } from '@/types'
 
@@ -17,7 +17,11 @@ interface AuthContextType {
   appUser:          AppUser | null
   permissions:      UserPermissions | null
   isLoading:        boolean
-  isDemo:           boolean
+
+  // Demo preview — only ever available to a real, signed-in admin
+  canPreviewDemo:    boolean
+  isPreviewingDemo:  boolean
+  toggleDemoPreview: () => void
 
   // Auth actions
   signInWithGoogle: () => Promise<void>
@@ -31,7 +35,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// ── Demo mode fake user ─────────────────────────────────────────
+// ── Demo preview fake identity ───────────────────────────────────
+// Shown only when a real admin opts in via toggleDemoPreview(). Because
+// Supabase is genuinely connected at that point, pages that scope queries
+// to the viewer's own id (worker/referrer dashboards, My Team) render this
+// account's real empty state; org-wide admin pages are unaffected, since
+// they aren't filtered by viewer id.
 
 const DEMO_APP_USER: AppUser = {
   id: 'demo-admin-001',
@@ -50,17 +59,25 @@ const DEMO_APP_USER: AppUser = {
 // ── Provider ────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const envDemo = isConfiguredDemoMode()
-  const [cookieDemo, setCookieDemo] = useState(false)
-  const demo = envDemo || cookieDemo
-
   const [user,      setUser]      = useState<User | null>(null)
   const [session,   setSession]   = useState<Session | null>(null)
-  const [appUser,   setAppUser]   = useState<AppUser | null>(envDemo ? DEMO_APP_USER : null)
-  const [isLoading, setIsLoading] = useState(!envDemo) // env demo starts loaded
+  const [realAppUser, setAppUser] = useState<AppUser | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isPreviewingDemo, setIsPreviewingDemo] = useState(false)
 
-  // ── Real Supabase auth (skipped in env demo) ────────────────
-  const supabase = envDemo ? null : createClient()
+  const canPreviewDemo = isDemoPreviewEnabled() && realAppUser?.role === 'admin'
+  const appUser = isPreviewingDemo && canPreviewDemo ? DEMO_APP_USER : realAppUser
+
+  const toggleDemoPreview = useCallback(() => {
+    setIsPreviewingDemo((prev) => (canPreviewDemo ? !prev : false))
+  }, [canPreviewDemo])
+
+  useEffect(() => {
+    setDemoPreviewActive(isPreviewingDemo && canPreviewDemo)
+  }, [isPreviewingDemo, canPreviewDemo])
+
+  // ── Real Supabase auth — always runs; demo never bypasses sign-in ──
+  const supabase = createClient()
 
   const loadAppUser = useCallback(async (userId: string) => {
     if (!supabase) return
@@ -70,13 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase])
 
   useEffect(() => {
-    if (envDemo || !supabase) return
-    if (hasDemoCookie()) {
-      setCookieDemo(true)
-      setAppUser(DEMO_APP_USER)
-      setIsLoading(false)
-      return
-    }
+    if (!supabase) return
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
@@ -126,12 +137,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setIsLoading(true)
     try {
-      clearDemoCookie()
       if (supabase) await supabase.auth.signOut()
     } finally {
       setUser(null)
       setSession(null)
       setAppUser(null)
+      setIsPreviewingDemo(false)
       setIsLoading(false)
     }
   }, [supabase])
@@ -174,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user, session, appUser,
       permissions: appUser ? getPermissions(appUser) : null,
       isLoading,
-      isDemo: demo,
+      canPreviewDemo, isPreviewingDemo, toggleDemoPreview,
       signInWithGoogle, signOut, refreshAppUser,
       hasAccess, hasRole,
     }}>

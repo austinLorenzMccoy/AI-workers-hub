@@ -29,11 +29,11 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => mockSupabase,
 }))
 
+let demoPreviewEnabled = false
+
 vi.mock('@/lib/demo', () => ({
-  isDemoMode: () => false,
-  isConfiguredDemoMode: () => false,
-  hasDemoCookie: () => false,
-  clearDemoCookie: vi.fn(),
+  isDemoPreviewEnabled: () => demoPreviewEnabled,
+  setDemoPreviewActive: vi.fn(),
 }))
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
@@ -50,6 +50,7 @@ beforeEach(() => {
   sessionResult = { data: { session: null } }
   appUserResult = { data: null }
   authStateCallback = null
+  demoPreviewEnabled = false
 })
 
 describe('useAuth', () => {
@@ -257,6 +258,89 @@ describe('AuthProvider', () => {
       await result.current.refreshAppUser()
     })
     expect(mockSupabase.from.mock.calls.length).toBe(callCount)
+  })
+})
+
+describe('demo preview', () => {
+  it('is unavailable when the deployment flag is off, even for an admin', async () => {
+    sessionResult = { data: { session: { user: { id: 'u1' } } } }
+    appUserResult = {
+      data: {
+        id: 'u1', email: 't@t.com', display_name: 'T', role: 'admin',
+        platform_access: null, worker_id: null, can_view_orders: true,
+        is_active: true, last_sign_in: null, created_at: '', updated_at: '',
+      },
+    }
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.appUser).not.toBeNull())
+    expect(result.current.canPreviewDemo).toBe(false)
+
+    act(() => result.current.toggleDemoPreview())
+    expect(result.current.isPreviewingDemo).toBe(false)
+    expect(result.current.appUser?.id).toBe('u1')
+  })
+
+  it('is unavailable to a real non-admin even when the flag is on', async () => {
+    demoPreviewEnabled = true
+    sessionResult = { data: { session: { user: { id: 'u1' } } } }
+    appUserResult = {
+      data: {
+        id: 'u1', email: 't@t.com', display_name: 'T', role: 'manager',
+        platform_access: null, worker_id: null, can_view_orders: false,
+        is_active: true, last_sign_in: null, created_at: '', updated_at: '',
+      },
+    }
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.appUser).not.toBeNull())
+    expect(result.current.canPreviewDemo).toBe(false)
+  })
+
+  it('lets a real admin toggle into the fake Demo Admin identity and back', async () => {
+    demoPreviewEnabled = true
+    sessionResult = { data: { session: { user: { id: 'u1' } } } }
+    appUserResult = {
+      data: {
+        id: 'u1', email: 'real-admin@test.com', display_name: 'Real Admin', role: 'admin',
+        platform_access: null, worker_id: null, can_view_orders: true,
+        is_active: true, last_sign_in: null, created_at: '', updated_at: '',
+      },
+    }
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.appUser).not.toBeNull())
+    expect(result.current.canPreviewDemo).toBe(true)
+    expect(result.current.isPreviewingDemo).toBe(false)
+
+    act(() => result.current.toggleDemoPreview())
+    expect(result.current.isPreviewingDemo).toBe(true)
+    expect(result.current.appUser?.id).toBe('demo-admin-001')
+    expect(result.current.appUser?.role).toBe('admin')
+
+    act(() => result.current.toggleDemoPreview())
+    expect(result.current.isPreviewingDemo).toBe(false)
+    expect(result.current.appUser?.id).toBe('u1')
+  })
+
+  it('resets preview state on sign out', async () => {
+    demoPreviewEnabled = true
+    sessionResult = { data: { session: { user: { id: 'u1' } } } }
+    appUserResult = {
+      data: {
+        id: 'u1', email: 't@t.com', display_name: 'T', role: 'admin',
+        platform_access: null, worker_id: null, can_view_orders: true,
+        is_active: true, last_sign_in: null, created_at: '', updated_at: '',
+      },
+    }
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.appUser).not.toBeNull())
+
+    act(() => result.current.toggleDemoPreview())
+    expect(result.current.isPreviewingDemo).toBe(true)
+
+    await act(async () => {
+      await result.current.signOut()
+    })
+    expect(result.current.isPreviewingDemo).toBe(false)
+    expect(result.current.appUser).toBeNull()
   })
 })
 
