@@ -49,7 +49,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="mt-6 text-lg leading-relaxed text-slate-300">
-              Manage hundreds of data annotators across 9 platforms from one place.
+              Manage hundreds of data annotators across any AI annotation platform from one place.
               Real-time tracking, role-based access control, automated alerts, and
               full audit trails — replacing spreadsheets forever.
             </p>
@@ -81,7 +81,7 @@ export default function LandingPage() {
             {/* Stats */}
             <div className="mt-16 grid grid-cols-3 gap-8">
               <div>
-                <p className="text-3xl font-bold text-white">9</p>
+                <p className="text-3xl font-bold text-white">9+</p>
                 <p className="mt-1 text-sm text-slate-400">AI Platforms</p>
               </div>
               <div>
@@ -144,8 +144,8 @@ export default function LandingPage() {
               },
               {
                 icon: <Globe className="h-6 w-6" />,
-                title: '9 Platforms',
-                desc: 'Oneforma, Telus, Data Annotation, Outlier, Mercor AI, Remotasks, Appen, Clickworker, and Scale AI — all in one dashboard.',
+                title: 'Any Platform',
+                desc: 'Ships with Oneforma, Telus, Data Annotation, Outlier, Mercor AI, Remotasks, Appen, Clickworker, and Scale AI — admins can add, rename, or retire platforms anytime.',
                 color: 'from-orange-500 to-amber-500',
               },
               {
@@ -179,10 +179,13 @@ export default function LandingPage() {
       {/* ── Platforms Section ────────────────────────────── */}
       <section className="py-20 px-6 lg:px-12 border-t border-slate-800/50">
         <div className="mx-auto max-w-7xl text-center">
-          <h2 className="text-2xl font-bold lg:text-3xl mb-12">
-            Supported Platforms
+          <h2 className="text-2xl font-bold lg:text-3xl">
+            Platforms Out of the Box
           </h2>
-          <div className="flex flex-wrap items-center justify-center gap-6">
+          <p className="mt-3 text-sm text-slate-400 max-w-xl mx-auto">
+            Add, rename, or retire platforms anytime from the admin console — these are just what you start with.
+          </p>
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-6">
             {[
               { name: 'Oneforma', icon: '🟣', color: '#8B5CF6' },
               { name: 'Telus', icon: '🔵', color: '#3B82F6' },
@@ -202,6 +205,10 @@ export default function LandingPage() {
                 <span style={{ color: p.color }}>{p.name}</span>
               </div>
             ))}
+            <div className="flex items-center gap-2 rounded-full border border-dashed border-slate-700 bg-transparent px-5 py-2.5 text-sm font-medium text-slate-400">
+              <span className="text-lg">➕</span>
+              <span>Add your own</span>
+            </div>
           </div>
         </div>
       </section>
